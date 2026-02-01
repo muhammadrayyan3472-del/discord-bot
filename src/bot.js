@@ -1,3 +1,18 @@
+module.exports = (client) => {
+  const prefix = process.env.PREFIX || "=";
+
+  client.on('messageCreate', async (message) => {
+    if (!message.content.startsWith(prefix) || message.author.bot) return;
+
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+
+    // Yahan se aapke existing command handling logic start hoga
+    // ...
+  });
+
+  // Agar aapke bot.js me aur bhi events hain, unhe bhi is function ke andar hi register karen
+};
 const { Client, GatewayIntentBits, EmbedBuilder, ActivityType, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Partials } = require('discord.js');
 const { evaluate } = require('mathjs');
 const axios = require('axios');
