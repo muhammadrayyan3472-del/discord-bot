@@ -16,6 +16,7 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', (message) => {
+  console.log(message.content); // TEMP: check if bot sees messages
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const command = message.content.slice(prefix.length).trim().toLowerCase();
