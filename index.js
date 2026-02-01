@@ -13,10 +13,11 @@ const prefix = process.env.PREFIX;
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
+  // Keep alive log
+  setInterval(() => console.log('Bot is alive!'), 60000); // logs every minute
 });
 
 client.on('messageCreate', (message) => {
-  console.log(message.content); // TEMP: check if bot sees messages
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
   const command = message.content.slice(prefix.length).trim().toLowerCase();
