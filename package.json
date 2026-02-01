@@ -1,10 +1,16 @@
 {
-  "name": "discord-bot",
+{
+  "name": "workspace",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Discord bot with crypto, moderation, and utility features",
   "dependencies": {
     "@discordjs/builders": "^1.13.0",
     "@discordjs/rest": "^2.6.0",
@@ -12,7 +18,6 @@
     "discord-api-types": "^0.38.34",
     "discord.js": "^14.25.1",
     "express": "^5.1.0",
-    "mathjs": "^15.1.0",
-    "dotenv": "^16.4.5"
+    "mathjs": "^15.1.0"
   }
 }
