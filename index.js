@@ -1,28 +1,40 @@
-require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, Collection } = require('discord.js');
+const { client } = require('./src/bot');
+const express = require('express');
+const app = express();
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessageReactions
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+// Railway requires a port to be bound to keep the service alive
+const PORT = process.env.PORT || 5000;
+
+app.get('/', (req, res) => {
+  res.send('Bot is running and healthy!');
 });
 
-client.commands = new Collection();
-
-// ✅ Just require bot.js (no function call)
-require('./src/bot');
-
-// Keep-alive log for Railway
-setInterval(() => console.log('Bot is alive!'), 60000);
-
-// Login
-client.login(process.env.DISCORD_TOKEN);
-
-client.once('ready', () => {
-  console.log(`Logged in as ${client.user.tag}`);
+app.listen(PORT, () => {
+  console.log(`Web server is listening on port ${PORT}`);
 });
+
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+
+if (!BOT_TOKEN) {
+  console.error('ERROR: DISCORD_BOT_TOKEN is not set in environment variables.');
+  process.exit(1);
+}
+
+client.login(BOT_TOKEN)
+  .then(() => {
+    console.log('Successfully logged in to Discord!');
+  })
+  .catch((error) => {
+    console.error('Failed to login to Discord:', error.message);
+    
+    if (error.message.includes('disallowed intents')) {
+      console.log('\n=== IMPORTANT: Enable Privileged Intents ===');
+      console.log('1. Go to https://discord.com/developers/applications');
+      console.log('2. Select your bot application');
+      console.log('3. Go to the "Bot" section');
+      console.log('4. Enable: MESSAGE CONTENT INTENT and SERVER MEMBERS INTENT');
+      console.log('============================================\n');
+    }
+    
+    process.exit(1);
+  });
