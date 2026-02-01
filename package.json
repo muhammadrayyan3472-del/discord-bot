@@ -1,16 +1,10 @@
 {
-{
   "name": "workspace",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "Discord bot with crypto, moderation, and utility features",
   "dependencies": {
     "@discordjs/builders": "^1.13.0",
     "@discordjs/rest": "^2.6.0",
