@@ -9,7 +9,7 @@ const client = new Client({
   ]
 });
 
-const prefix = process.env.PREFIX || "!"; // default to ! if PREFIX is not set
+const prefix = process.env.PREFIX;
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -18,8 +18,7 @@ client.once('ready', () => {
 client.on('messageCreate', (message) => {
   if (!message.content.startsWith(prefix) || message.author.bot) return;
 
-  const args = message.content.slice(prefix.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
+  const command = message.content.slice(prefix.length).trim().toLowerCase();
 
   if (command === 'ping') {
     message.channel.send('Pong!');
