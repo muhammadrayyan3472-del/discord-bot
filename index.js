@@ -1,35 +1,28 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, Collection } = require('discord.js');
 
-// Create a new Discord client with all necessary intents
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,                // for guild related events
-    GatewayIntentBits.GuildMessages,         // for message events
-    GatewayIntentBits.MessageContent,        // for reading message content
-    GatewayIntentBits.GuildMembers,          // for member info, moderation commands
-    GatewayIntentBits.GuildMessageReactions, // for reaction roles
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessageReactions
   ],
-  partials: [
-    Partials.Message,   // Required for reaction partials
-    Partials.Channel,   // Required for reaction partials
-    Partials.Reaction   // Required for reaction partials
-  ]
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
-// Command collection (if your bot.js uses commands dynamically)
 client.commands = new Collection();
 
-// Load your full bot.js
-require('./src/bot')(client);
+// ✅ Just require bot.js (no function call)
+require('./src/bot');
 
-// Keep-alive log (Railway friendly)
+// Keep-alive log for Railway
 setInterval(() => console.log('Bot is alive!'), 60000);
 
-// Login the bot
+// Login
 client.login(process.env.DISCORD_TOKEN);
 
-// Optional: Log when ready
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
