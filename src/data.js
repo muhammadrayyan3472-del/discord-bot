@@ -1,116 +1,184 @@
+// data.js
 const fs = require('fs');
 const path = require('path');
 
-const DATA_FILE = path.join(__dirname, '../data.json');
-
-const defaultData = {
-  reactionRoles: {},
-  verifiedUsers: {},
-  messageCounts: {},
-  verifyRole: null,
-  warnings: {},
-  reputation: {},
-  vouches: [],
-  uptime: Date.now()
-};
-
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, 'utf8');
-      return { ...defaultData, ...JSON.parse(raw) };
-    }
-  } catch (error) {
-    console.error('Error loading data:', error);
+class DataStore {
+  constructor() {
+    this.dataPath = path.join(__dirname, 'data.json');
+    this.data = this.loadData();
+    this.uptimeStart = Date.now();
   }
-  return { ...defaultData };
+
+  loadData() {
+    try {
+      if (fs.existsSync(this.dataPath)) {
+        const rawData = fs.readFileSync(this.dataPath, 'utf8');
+        return JSON.parse(rawData);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+    return {
+      guilds: {},
+      users: {},
+      reactionRoles: {},
+      warnings: {},
+      verifiedUsers: {},
+      messageCounts: {},
+      xpData: {},
+      dailyCooldowns: {},
+      tickets: {},
+      autoMod: {},
+      blacklist: {},
+      logs: {}
+    };
+  }
+
+  saveData() {
+    try {
+      fs.writeFileSync(this.dataPath, JSON.stringify(this.data, null, 2), 'utf8');
+    } catch (error) {
+      console.error('Error saving data:', error);
+    }
+  }
+
+  // Message Count
+  incrementMessageCount(guildId) {
+    if (!this.data.messageCounts[guildId]) {
+      this.data.messageCounts[guildId] = 0;
+    }
+    this.data.messageCounts[guildId]++;
+    this.saveData();
+  }
+
+  getMessageCount(guildId) {
+    return this.data.messageCounts[guildId] || 0;
+  }
+
+  // Reaction Roles
+  setReactionRole(name, config) {
+    this.data.reactionRoles[name] = config;
+    this.saveData();
+  }
+
+  getReactionRoles() {
+    return this.data.reactionRoles || {};
+  }
+
+  deleteReactionRole(name) {
+    delete this.data.reactionRoles[name];
+    this.saveData();
+  }
+
+  // Verification
+  addVerifiedUser(guildId, userId) {
+    if (!this.data.verifiedUsers[guildId]) {
+      this.data.verifiedUsers[guildId] = [];
+    }
+    if (!this.data.verifiedUsers[guildId].includes(userId)) {
+      this.data.verifiedUsers[guildId].push(userId);
+    }
+    this.saveData();
+  }
+
+  removeVerifiedUser(guildId, userId) {
+    if (this.data.verifiedUsers[guildId]) {
+      this.data.verifiedUsers[guildId] = this.data.verifiedUsers[guildId].filter(id => id !== userId);
+    }
+    this.saveData();
+  }
+
+  isVerified(guildId, userId) {
+    return this.data.verifiedUsers[guildId]?.includes(userId) || false;
+  }
+
+  setVerifyRole(guildId, roleId) {
+    if (!this.data.guilds[guildId]) {
+      this.data.guilds[guildId] = {};
+    }
+    this.data.guilds[guildId].verifyRole = roleId;
+    this.saveData();
+  }
+
+  getVerifyRole(guildId) {
+    return this.data.guilds[guildId]?.verifyRole || null;
+  }
+
+  // Warnings
+  addWarning(guildId, userId, reason) {
+    if (!this.data.warnings[guildId]) {
+      this.data.warnings[guildId] = {};
+    }
+    if (!this.data.warnings[guildId][userId]) {
+      this.data.warnings[guildId][userId] = [];
+    }
+    this.data.warnings[guildId][userId].push({
+      reason,
+      timestamp: Date.now(),
+      moderator: 'System'
+    });
+    this.saveData();
+  }
+
+  getWarnings(guildId, userId) {
+    return this.data.warnings[guildId]?.[userId] || [];
+  }
+
+  clearWarnings(guildId, userId) {
+    if (this.data.warnings[guildId]) {
+      delete this.data.warnings[guildId][userId];
+    }
+    this.saveData();
+  }
+
+  // Reputation
+  addReputation(userId, amount = 1) {
+    if (!this.data.users[userId]) {
+      this.data.users[userId] = { reputation: 0 };
+    }
+    this.data.users[userId].reputation = (this.data.users[userId].reputation || 0) + amount;
+    this.saveData();
+    return this.data.users[userId].reputation;
+  }
+
+  getReputation(userId) {
+    return this.data.users[userId]?.reputation || 0;
+  }
+
+  // XP System
+  setUserXP(guildId, userId, xpData) {
+    if (!this.data.xpData[guildId]) {
+      this.data.xpData[guildId] = {};
+    }
+    this.data.xpData[guildId][userId] = xpData;
+    this.saveData();
+  }
+
+  getUserXP(guildId, userId) {
+    return this.data.xpData[guildId]?.[userId] || null;
+  }
+
+  getAllXP(guildId) {
+    return this.data.xpData[guildId] || {};
+  }
+
+  // Daily Cooldown
+  setDailyCooldown(userId, guildId) {
+    if (!this.data.dailyCooldowns[guildId]) {
+      this.data.dailyCooldowns[guildId] = {};
+    }
+    this.data.dailyCooldowns[guildId][userId] = Date.now();
+    this.saveData();
+  }
+
+  getDailyCooldown(userId, guildId) {
+    return this.data.dailyCooldowns[guildId]?.[userId] || 0;
+  }
+
+  // Uptime
+  getUptime() {
+    return this.uptimeStart;
+  }
 }
 
-function saveData(data) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-  } catch (error) {
-    console.error('Error saving data:', error);
-  }
-}
-
-let data = loadData();
-
-module.exports = {
-  getData: () => data,
-  saveData: () => saveData(data),
-  
-  getReactionRoles: () => data.reactionRoles,
-  setReactionRole: (name, config) => {
-    data.reactionRoles[name.toLowerCase()] = config;
-    saveData(data);
-  },
-  deleteReactionRole: (name) => {
-    delete data.reactionRoles[name.toLowerCase()];
-    saveData(data);
-  },
-  
-  getVerifiedUsers: (guildId) => data.verifiedUsers[guildId] || [],
-  addVerifiedUser: (guildId, userId) => {
-    if (!data.verifiedUsers[guildId]) data.verifiedUsers[guildId] = [];
-    if (!data.verifiedUsers[guildId].includes(userId)) {
-      data.verifiedUsers[guildId].push(userId);
-      saveData(data);
-    }
-  },
-  removeVerifiedUser: (guildId, userId) => {
-    if (data.verifiedUsers[guildId]) {
-      data.verifiedUsers[guildId] = data.verifiedUsers[guildId].filter(id => id !== userId);
-      saveData(data);
-    }
-  },
-  isVerified: (guildId, userId) => {
-    return data.verifiedUsers[guildId]?.includes(userId) || false;
-  },
-  
-  getVerifyRole: (guildId) => data.verifyRole?.[guildId],
-  setVerifyRole: (guildId, roleId) => {
-    if (!data.verifyRole) data.verifyRole = {};
-    data.verifyRole[guildId] = roleId;
-    saveData(data);
-  },
-  
-  getMessageCount: (guildId) => data.messageCounts[guildId] || 0,
-  incrementMessageCount: (guildId) => {
-    if (!data.messageCounts[guildId]) data.messageCounts[guildId] = 0;
-    data.messageCounts[guildId]++;
-    if (data.messageCounts[guildId] % 10 === 0) {
-      saveData(data);
-    }
-  },
-  getAllMessageCounts: () => data.messageCounts,
-  
-  addWarning: (guildId, userId, reason) => {
-    if (!data.warnings[guildId]) data.warnings[guildId] = {};
-    if (!data.warnings[guildId][userId]) data.warnings[guildId][userId] = [];
-    data.warnings[guildId][userId].push({ reason, date: new Date().toISOString() });
-    saveData(data);
-  },
-  getWarnings: (guildId, userId) => data.warnings[guildId]?.[userId] || [],
-  clearWarnings: (guildId, userId) => {
-    if (data.warnings[guildId]) delete data.warnings[guildId][userId];
-    saveData(data);
-  },
-  
-  addReputation: (userId, amount) => {
-    if (!data.reputation[userId]) data.reputation[userId] = 0;
-    data.reputation[userId] += amount;
-    saveData(data);
-  },
-  getReputation: (userId) => data.reputation[userId] || 0,
-  
-  addVouch: (vouchData) => {
-    if (!data.vouches) data.vouches = [];
-    data.vouches.push(vouchData);
-    saveData(data);
-  },
-  getVouches: () => data.vouches || [],
-  
-  getUptime: () => data.uptime,
-  forceSave: () => saveData(data)
-};
+module.exports = new DataStore();
