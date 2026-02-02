@@ -2671,6 +2671,1252 @@ async function snipeCommand(message) {
   
   await message.reply({ embeds: [embed] });
 }
+// ==================== MISSING GAME FUNCTIONS ====================
+
+async function rpsGameCommand(message, args) {
+  const choices = ['rock', 'paper', 'scissors'];
+  const botChoice = choices[Math.floor(Math.random() * choices.length)];
+  const userChoice = args[0]?.toLowerCase();
+  
+  if (!userChoice || !choices.includes(userChoice)) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '✊ Rock Paper Scissors', iconURL: client.user.displayAvatarURL() })
+      .setDescription('**Usage:** `=rps <rock|paper|scissors>`')
+      .addFields({
+        name: '📋 Example',
+        value: '```=rps rock\n=rps paper\n=rps scissors```'
+      })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  let result = '';
+  let xpEarned = 0;
+  
+  if (userChoice === botChoice) {
+    result = '🤝 **Draw!**';
+    xpEarned = 5;
+  } else if (
+    (userChoice === 'rock' && botChoice === 'scissors') ||
+    (userChoice === 'paper' && botChoice === 'rock') ||
+    (userChoice === 'scissors' && botChoice === 'paper')
+  ) {
+    result = '🎉 **You Win!**';
+    xpEarned = 15;
+  } else {
+    result = '❌ **You Lose!**';
+    xpEarned = 2; // Participation XP
+  }
+  
+  const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'rps_game');
+  
+  const embed = new EmbedBuilder()
+    .setColor(result.includes('Win') ? COLORS.success : result.includes('Lose') ? COLORS.error : COLORS.warning)
+    .setAuthor({ name: '✊ Rock Paper Scissors', iconURL: message.author.displayAvatarURL() })
+    .addFields(
+      { name: '👤 Your Choice', value: userChoice.toUpperCase(), inline: true },
+      { name: '🤖 Bot Choice', value: botChoice.toUpperCase(), inline: true },
+      { name: '🏆 Result', value: result, inline: true },
+      { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: false }
+    )
+    .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : `Total XP: ${xpResult.xp}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function numberGameCommand(message, args) {
+  const gameId = `${message.channel.id}_${message.author.id}`;
+  
+  if (activeGames.has(gameId)) {
+    return message.reply({ embeds: [createErrorEmbed('You already have an active game!')] });
+  }
+  
+  const maxNumber = parseInt(args[0]) || 100;
+  if (maxNumber < 10 || maxNumber > 1000) {
+    return message.reply({ embeds: [createErrorEmbed('Please choose a number between 10 and 1000.')] });
+  }
+  
+  const targetNumber = Math.floor(Math.random() * maxNumber) + 1;
+  const maxAttempts = Math.min(Math.floor(Math.log2(maxNumber)) + 5, 15);
+  
+  const gameData = {
+    type: 'number',
+    target: targetNumber,
+    maxNumber: maxNumber,
+    attempts: 0,
+    maxAttempts: maxAttempts,
+    startTime: Date.now(),
+    guesses: []
+  };
+  
+  activeGames.set(gameId, gameData);
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.game)
+    .setAuthor({ name: '🔢 Number Guessing Game', iconURL: message.author.displayAvatarURL() })
+    .setDescription(`Guess the number between **1** and **${maxNumber}**!`)
+    .addFields(
+      { name: '🎯 Max Attempts', value: `${maxAttempts}`, inline: true },
+      { name: '🏆 Scoring', value: '• Win: 20 XP\n• Bonus for fewer attempts', inline: true },
+      { name: '💡 Hint', value: 'Type `quit` to end the game', inline: true }
+    )
+    .setFooter({ text: 'Type your guess below!' })
+    .setTimestamp();
+  
+  const msg = await message.reply({ embeds: [embed] });
+  gameData.messageId = msg.id;
+}
+
+async function handleNumberGuess(message, gameId, guess) {
+  const gameData = activeGames.get(gameId);
+  if (!gameData) return;
+  
+  if (isNaN(guess)) {
+    await message.reply({ embeds: [createErrorEmbed('Please enter a valid number!')] });
+    return;
+  }
+  
+  gameData.attempts++;
+  gameData.guesses.push(guess);
+  
+  if (guess === gameData.target) {
+    // Win!
+    let xpEarned = 20;
+    if (gameData.attempts <= 5) xpEarned += 15;
+    else if (gameData.attempts <= 10) xpEarned += 5;
+    
+    const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'number_game_win');
+    const timeTaken = Date.now() - gameData.startTime;
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '🎉 You Win!', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**Correct! The number was ${gameData.target}**`)
+      .addFields(
+        { name: '🎯 Attempts', value: `${gameData.attempts}`, inline: true },
+        { name: '⏱️ Time', value: `${(timeTaken / 1000).toFixed(1)}s`, inline: true },
+        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true }
+      )
+      .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : 'Great guessing!' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    activeGames.delete(gameId);
+  } else if (gameData.attempts >= gameData.maxAttempts) {
+    // Lose
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.error)
+      .setAuthor({ name: '❌ Game Over', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**The number was ${gameData.target}**`)
+      .addFields(
+        { name: '🎯 Attempts Used', value: `${gameData.attempts}`, inline: true },
+        { name: '📊 Your Guesses', value: gameData.guesses.join(', '), inline: true }
+      )
+      .setFooter({ text: 'Better luck next time!' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    activeGames.delete(gameId);
+  } else {
+    // Give hint
+    let hint = '';
+    if (guess < gameData.target) {
+      hint = '📈 **Too low!** Try a higher number.';
+    } else {
+      hint = '📉 **Too high!** Try a lower number.';
+    }
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.warning)
+      .setAuthor({ name: '🔢 Number Guessing', iconURL: message.author.displayAvatarURL() })
+      .setDescription(hint)
+      .addFields(
+        { name: '🎯 Attempt', value: `${gameData.attempts}/${gameData.maxAttempts}`, inline: true },
+        { name: '🎯 Range', value: `1 - ${gameData.maxNumber}`, inline: true },
+        { name: '💡 Previous Guesses', value: gameData.guesses.slice(-3).join(', ') || 'None', inline: true }
+      )
+      .setFooter({ text: `Keep guessing! You have ${gameData.maxAttempts - gameData.attempts} attempts left` })
+      .setTimestamp();
+    
+    const gameMessage = await message.channel.messages.fetch(gameData.messageId).catch(() => null);
+    if (gameMessage) {
+      await gameMessage.edit({ embeds: [embed] });
+    }
+  }
+}
+
+async function wordChainGameCommand(message, args) {
+  const gameId = `${message.channel.id}`; // Channel-wide game
+  
+  if (activeGames.has(gameId)) {
+    return message.reply({ embeds: [createErrorEmbed('A word chain game is already active in this channel!')] });
+  }
+  
+  const gameData = {
+    type: 'wordchain',
+    currentWord: '',
+    players: {},
+    usedWords: new Set(),
+    currentPlayer: message.author.id,
+    startTime: Date.now(),
+    lastWordTime: Date.now()
+  };
+  
+  // Start with a random word
+  const startingWords = ['apple', 'elephant', 'tiger', 'rabbit', 'orange', 'grapes', 'sun', 'moon', 'star', 'water'];
+  gameData.currentWord = startingWords[Math.floor(Math.random() * startingWords.length)];
+  gameData.usedWords.add(gameData.currentWord);
+  
+  activeGames.set(gameId, gameData);
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.game)
+    .setAuthor({ name: '🔠 Word Chain Game', iconURL: message.author.displayAvatarURL() })
+    .setDescription(`**Word Chain Game Started!**\n\nFirst word: **${gameData.currentWord.toUpperCase()}**`)
+    .addFields(
+      { name: '🎯 How to Play', value: 'Say a word that starts with the **last letter** of the previous word!\nExample: "apple" → "elephant" → "tiger"', inline: false },
+      { name: '📋 Rules', value: '• No repeating words\n• English words only\n• Minimum 3 letters\n• Type `quit` to end game', inline: false },
+      { name: '🏆 Scoring', value: '• Valid word: 5 XP\n• Chain bonus: +1 XP per consecutive word\n• Game winner bonus: 50 XP', inline: false }
+    )
+    .setFooter({ text: `Started by ${message.author.tag} | Current player: ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function handleWordChainGuess(message, gameId, guess) {
+  const gameData = activeGames.get(gameId);
+  if (!gameData) return;
+  
+  if (message.author.id !== gameData.currentPlayer) {
+    await message.reply({ embeds: [createErrorEmbed(`It's not your turn! Wait for ${message.guild.members.cache.get(gameData.currentPlayer)?.user.tag || 'current player'}.`)] });
+    return;
+  }
+  
+  guess = guess.toLowerCase().trim();
+  
+  if (guess === 'quit') {
+    // End game
+    const winnerId = Object.keys(gameData.players).reduce((a, b) => 
+      gameData.players[a] > gameData.players[b] ? a : b
+    );
+    const winner = await message.guild.members.fetch(winnerId).catch(() => null);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.primary)
+      .setAuthor({ name: '🏁 Game Ended', iconURL: client.user.displayAvatarURL() })
+      .setDescription(`**Word Chain Game Ended!**`)
+      .addFields(
+        { name: '🏆 Winner', value: winner ? `${winner.user.tag}` : 'No winner', inline: true },
+        { name: '📊 Total Words', value: `${gameData.usedWords.size - 1}`, inline: true },
+        { name: '👥 Players', value: `${Object.keys(gameData.players).length}`, inline: true }
+      )
+      .setFooter({ text: 'Thanks for playing!' })
+      .setTimestamp();
+    
+    // Give winner bonus
+    if (winner) {
+      addXP(winner.id, message.guild.id, 50, 'wordchain_winner');
+    }
+    
+    await message.reply({ embeds: [embed] });
+    activeGames.delete(gameId);
+    return;
+  }
+  
+  // Validate word
+  const lastLetter = gameData.currentWord.slice(-1);
+  
+  if (!guess.startsWith(lastLetter)) {
+    await message.reply({ embeds: [createErrorEmbed(`Your word must start with "${lastLetter.toUpperCase()}"!`)] });
+    return;
+  }
+  
+  if (gameData.usedWords.has(guess)) {
+    await message.reply({ embeds: [createErrorEmbed('That word has already been used!')] });
+    return;
+  }
+  
+  if (guess.length < 3) {
+    await message.reply({ embeds: [createErrorEmbed('Word must be at least 3 letters long!')] });
+    return;
+  }
+  
+  // Word is valid!
+  gameData.currentWord = guess;
+  gameData.usedWords.add(guess);
+  gameData.lastWordTime = Date.now();
+  
+  // Update player score
+  if (!gameData.players[message.author.id]) {
+    gameData.players[message.author.id] = 0;
+  }
+  gameData.players[message.author.id] += 5;
+  
+  // Chain bonus
+  const chainLength = Array.from(gameData.usedWords).length;
+  if (chainLength % 5 === 0) {
+    gameData.players[message.author.id] += 5;
+    await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.xp).setDescription(`🎉 **Chain Bonus!** +5 XP for reaching ${chainLength} words!`).setTimestamp()] });
+  }
+  
+  // Give XP
+  addXP(message.author.id, message.guild.id, 5, 'wordchain_word');
+  
+  // Find next player (round robin)
+  const playerIds = Object.keys(gameData.players);
+  const currentIndex = playerIds.indexOf(message.author.id);
+  const nextIndex = (currentIndex + 1) % playerIds.length;
+  gameData.currentPlayer = playerIds[nextIndex];
+  
+  const nextPlayer = await message.guild.members.fetch(gameData.currentPlayer).catch(() => null);
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.success)
+    .setAuthor({ name: '✅ Word Accepted!', iconURL: message.author.displayAvatarURL() })
+    .setDescription(`**${message.author.tag}** said: **${guess.toUpperCase()}**`)
+    .addFields(
+      { name: '🎯 Next Letter', value: `"${guess.slice(-1).toUpperCase()}"`, inline: true },
+      { name: '📊 Total Words', value: `${gameData.usedWords.size}`, inline: true },
+      { name: '👤 Next Player', value: nextPlayer ? nextPlayer.user.tag : 'Unknown', inline: true },
+      { name: '⭐ XP Earned', value: '+5 XP', inline: false }
+    )
+    .setFooter({ text: `Your score: ${gameData.players[message.author.id] || 0} points` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function triviaGameCommand(message, args) {
+  const gameId = `${message.channel.id}_${message.author.id}`;
+  
+  const categories = [
+    { id: 9, name: 'General Knowledge' },
+    { id: 10, name: 'Books' },
+    { id: 11, name: 'Film' },
+    { id: 12, name: 'Music' },
+    { id: 15, name: 'Video Games' },
+    { id: 18, name: 'Computers' },
+    { id: 21, name: 'Sports' },
+    { id: 22, name: 'Geography' },
+    { id: 23, name: 'History' },
+    { id: 24, name: 'Politics' },
+    { id: 25, name: 'Art' },
+    { id: 27, name: 'Animals' }
+  ];
+  
+  try {
+    const category = categories.find(c => c.name.toLowerCase().includes(args[0]?.toLowerCase() || '')) || categories[0];
+    const response = await axios.get(`https://opentdb.com/api.php?amount=1&category=${category.id}&type=multiple`);
+    
+    if (!response.data.results || response.data.results.length === 0) {
+      return message.reply({ embeds: [createErrorEmbed('Could not fetch trivia question.')] });
+    }
+    
+    const questionData = response.data.results[0];
+    const answers = [...questionData.incorrect_answers, questionData.correct_answer];
+    
+    // Shuffle answers
+    for (let i = answers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [answers[i], answers[j]] = [answers[j], answers[i]];
+    }
+    
+    const correctIndex = answers.indexOf(questionData.correct_answer);
+    
+    const gameData = {
+      type: 'trivia',
+      question: questionData.question,
+      answers: answers,
+      correctIndex: correctIndex,
+      correctAnswer: questionData.correct_answer,
+      category: category.name,
+      difficulty: questionData.difficulty,
+      startTime: Date.now(),
+      answered: false
+    };
+    
+    activeGames.set(gameId, gameData);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.game)
+      .setAuthor({ name: '🧠 Trivia Challenge', iconURL: message.author.displayAvatarURL() })
+      .setTitle(`Category: ${category.name}`)
+      .setDescription(`**${questionData.question}**`)
+      .addFields(
+        { name: '📝 Options', value: answers.map((a, i) => `${String.fromCharCode(65 + i)}) ${a}`).join('\n'), inline: false },
+        { name: '🎯 Difficulty', value: questionData.difficulty.toUpperCase(), inline: true },
+        { name: '⏱️ Time Limit', value: '30 seconds', inline: true }
+      )
+      .setFooter({ text: 'Reply with the letter (A, B, C, D) or type "quit"' })
+      .setTimestamp();
+    
+    const msg = await message.reply({ embeds: [embed] });
+    gameData.messageId = msg.id;
+    gameData.timeout = setTimeout(() => endTriviaGame(message, gameId, false), 30000);
+  } catch (error) {
+    console.error('Trivia error:', error);
+    message.reply({ embeds: [createErrorEmbed('Failed to fetch trivia question.')] });
+  }
+}
+
+async function handleTriviaGuess(message, gameId, guess) {
+  const gameData = activeGames.get(gameId);
+  if (!gameData) return;
+  
+  if (gameData.answered) return;
+  
+  const letter = guess.toUpperCase();
+  const letterIndex = letter.charCodeAt(0) - 65; // A=0, B=1, etc.
+  
+  if (letterIndex < 0 || letterIndex >= gameData.answers.length || letter.length !== 1) {
+    await message.reply({ embeds: [createErrorEmbed('Please reply with A, B, C, or D!')] });
+    return;
+  }
+  
+  gameData.answered = true;
+  clearTimeout(gameData.timeout);
+  
+  const isCorrect = letterIndex === gameData.correctIndex;
+  let xpEarned = 0;
+  
+  if (isCorrect) {
+    // Calculate XP based on difficulty and speed
+    xpEarned = 15;
+    if (gameData.difficulty === 'hard') xpEarned += 10;
+    else if (gameData.difficulty === 'medium') xpEarned += 5;
+    
+    const timeTaken = Date.now() - gameData.startTime;
+    if (timeTaken < 10000) xpEarned += 5; // Quick answer bonus
+    
+    const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'trivia_correct');
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ Correct Answer!', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**${gameData.correctAnswer}**`)
+      .addFields(
+        { name: '🎯 Difficulty', value: gameData.difficulty.toUpperCase(), inline: true },
+        { name: '⏱️ Time', value: `${(timeTaken / 1000).toFixed(1)}s`, inline: true },
+        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true }
+      )
+      .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : 'Great job!' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  } else {
+    xpEarned = 2; // Participation XP
+    addXP(message.author.id, message.guild.id, xpEarned, 'trivia_participation');
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.error)
+      .setAuthor({ name: '❌ Incorrect', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**Correct answer:** ${gameData.correctAnswer}`)
+      .addFields(
+        { name: '🤔 Your Answer', value: gameData.answers[letterIndex], inline: true },
+        { name: '⭐ Participation XP', value: '+2 XP', inline: true }
+      )
+      .setFooter({ text: 'Better luck next time!' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  }
+  
+  activeGames.delete(gameId);
+}
+
+async function endTriviaGame(message, gameId, manualEnd = false) {
+  const gameData = activeGames.get(gameId);
+  if (!gameData) return;
+  
+  if (!gameData.answered) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.warning)
+      .setAuthor({ name: '⏰ Time\'s Up!', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**Correct answer:** ${gameData.correctAnswer}`)
+      .addFields(
+        { name: '📝 Question', value: gameData.question, inline: false }
+      )
+      .setFooter({ text: 'You ran out of time!' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  }
+  
+  activeGames.delete(gameId);
+}
+
+// ==================== MISSING MODERATION FUNCTIONS ====================
+
+async function roleInfoCommand(message, args) {
+  const roleId = extractId(args[0]);
+  if (!roleId) return message.reply({ embeds: [createErrorEmbed('Please mention a role or provide role ID.')] });
+  
+  const role = message.guild.roles.cache.get(roleId);
+  if (!role) return message.reply({ embeds: [createErrorEmbed('Role not found.')] });
+  
+  const members = role.members.size;
+  const created = Math.floor(role.createdTimestamp / 1000);
+  const color = role.hexColor === '#000000' ? 'Default' : role.hexColor;
+  
+  const embed = new EmbedBuilder()
+    .setColor(role.color || COLORS.primary)
+    .setAuthor({ name: '🏷️ Role Information', iconURL: message.guild.iconURL() })
+    .setTitle(role.name)
+    .addFields(
+      { name: '🆔 Role ID', value: `\`${role.id}\``, inline: true },
+      { name: '👥 Members', value: `${members.toLocaleString()}`, inline: true },
+      { name: '🎨 Color', value: color, inline: true },
+      { name: '📅 Created', value: `<t:${created}:R>`, inline: true },
+      { name: '📍 Position', value: `${role.position}/${message.guild.roles.cache.size}`, inline: true },
+      { name: '🔐 Mentionable', value: role.mentionable ? 'Yes' : 'No', inline: true },
+      { name: '💼 Permissions', value: `\`\`\`${role.permissions.toArray().slice(0, 10).join(', ') || 'None'}${role.permissions.toArray().length > 10 ? '...' : ''}\`\`\``, inline: false }
+    )
+    .setFooter({ text: `Requested by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function roleAllCommand(message, args) {
+  if (!isAdmin(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
+  }
+  
+  const roleId = extractId(args[0]);
+  if (!roleId) return message.reply({ embeds: [createErrorEmbed('Please mention a role.')] });
+  
+  const role = message.guild.roles.cache.get(roleId);
+  if (!role) return message.reply({ embeds: [createErrorEmbed('Role not found.')] });
+  
+  const confirmEmbed = new EmbedBuilder()
+    .setColor(COLORS.warning)
+    .setAuthor({ name: '⚠️ Add Role to All Members', iconURL: client.user.displayAvatarURL() })
+    .setDescription(`Are you sure you want to add **${role.name}** to **ALL** members?\n\nThis will affect **${message.guild.memberCount.toLocaleString()}** members!\n\nType \`confirm\` to proceed or \`cancel\` to abort.`)
+    .setFooter({ text: 'This may take a while...' })
+    .setTimestamp();
+  
+  const confirmation = await message.reply({ embeds: [confirmEmbed] });
+  
+  const filter = m => m.author.id === message.author.id && ['confirm', 'cancel'].includes(m.content.toLowerCase());
+  
+  try {
+    const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
+    const response = collected.first().content.toLowerCase();
+    
+    if (response === 'cancel') {
+      await message.reply({ embeds: [createSuccessEmbed('Action Cancelled', 'Role assignment cancelled.')] });
+      return;
+    }
+    
+    const progress = await message.reply({ embeds: [new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setDescription('⏳ Adding role to all members...')
+      .setTimestamp()
+    ]});
+    
+    let success = 0;
+    let failed = 0;
+    const members = await message.guild.members.fetch();
+    
+    for (const [id, member] of members) {
+      try {
+        if (!member.roles.cache.has(role.id)) {
+          await member.roles.add(role);
+          success++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+    
+    const resultEmbed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ Role Assignment Complete', iconURL: message.author.displayAvatarURL() })
+      .addFields(
+        { name: '🏷️ Role', value: role.name, inline: true },
+        { name: '✅ Success', value: `${success} members`, inline: true },
+        { name: '❌ Failed', value: `${failed} members`, inline: true },
+        { name: '👥 Total Members', value: `${members.size}`, inline: false }
+      )
+      .setFooter({ text: `Action by ${message.author.tag}` })
+      .setTimestamp();
+    
+    await progress.edit({ embeds: [resultEmbed] });
+  } catch (error) {
+    await message.reply({ embeds: [createErrorEmbed('Action cancelled or timed out.')] });
+  }
+}
+
+async function stealEmojiCommand(message, args) {
+  if (!isAdmin(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
+  }
+  
+  if (args.length < 1) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '😀 Steal Emoji', iconURL: client.user.displayAvatarURL() })
+      .setDescription('**Usage:** `=stealemoji <emoji> [name]`')
+      .addFields({
+        name: '📋 Example',
+        value: '```=stealemoji 🎉 party_popper\n=stealemoji :custom_emoji: new_name```'
+      })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  const emojiMatch = args[0].match(/<?(a)?:?(\w{2,32}):(\d{17,19})>?/);
+  if (!emojiMatch) {
+    return message.reply({ embeds: [createErrorEmbed('Please provide a valid custom emoji.')] });
+  }
+  
+  const animated = emojiMatch[1] === 'a';
+  const emojiName = args[1] || emojiMatch[2];
+  const emojiId = emojiMatch[3];
+  const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${animated ? 'gif' : 'png'}`;
+  
+  try {
+    const emoji = await message.guild.emojis.create({
+      attachment: emojiUrl,
+      name: emojiName
+    });
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ Emoji Stolen!', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`Added new emoji: ${emoji}`)
+      .addFields(
+        { name: '😀 Name', value: `\`${emoji.name}\``, inline: true },
+        { name: '🆔 ID', value: `\`${emoji.id}\``, inline: true },
+        { name: '🌀 Animated', value: emoji.animated ? 'Yes' : 'No', inline: true }
+      )
+      .setThumbnail(emojiUrl)
+      .setFooter({ text: `Added by ${message.author.tag}` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  } catch (error) {
+    message.reply({ embeds: [createErrorEmbed('Failed to add emoji. Check bot permissions and emoji slots.')] });
+  }
+}
+
+async function advancedPollCommand(message, args) {
+  if (args.length < 2) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '📊 Advanced Poll', iconURL: client.user.displayAvatarURL() })
+      .setDescription('**Usage:** `=advancedpoll "<question>" "<option1>" "<option2>" [option3...]`')
+      .addFields({
+        name: '📋 Example',
+        value: '```=advancedpoll "Favorite Color?" "Red 🔴" "Blue 🔵" "Green 🟢" "Yellow 🟡"```'
+      })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  // Parse arguments with quotes
+  const content = args.join(' ');
+  const matches = content.match(/"(.*?)"/g);
+  
+  if (!matches || matches.length < 3) {
+    return message.reply({ embeds: [createErrorEmbed('Please provide question and at least 2 options in quotes.')] });
+  }
+  
+  const question = matches[0].replace(/"/g, '');
+  const options = matches.slice(1).map(m => m.replace(/"/g, ''));
+  
+  if (options.length > 10) {
+    return message.reply({ embeds: [createErrorEmbed('Maximum 10 options allowed.')] });
+  }
+  
+  const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+  const optionsText = options.map((opt, i) => `${numberEmojis[i]} ${opt}`).join('\n');
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setAuthor({ name: '📊 Poll', iconURL: message.author.displayAvatarURL() })
+    .setTitle(question)
+    .setDescription(optionsText)
+    .setFooter({ text: `Poll created by ${message.author.tag} • React to vote!` })
+    .setTimestamp();
+  
+  const pollMessage = await message.channel.send({ embeds: [embed] });
+  
+  // Add reactions
+  for (let i = 0; i < options.length; i++) {
+    await pollMessage.react(numberEmojis[i]);
+  }
+  
+  await message.delete().catch(() => {});
+}
+
+async function giveawayCommand(message, args) {
+  if (!isAdmin(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
+  }
+  
+  if (args.length < 3) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '🎉 Giveaway', iconURL: client.user.displayAvatarURL() })
+      .setDescription('**Usage:** `=giveaway <duration> <winners> <prize>`')
+      .addFields({
+        name: '⏱️ Duration Format',
+        value: '`s` = seconds, `m` = minutes, `h` = hours, `d` = days'
+      }, {
+        name: '📋 Example',
+        value: '```=giveaway 1h 1 Discord Nitro\n=giveaway 24h 3 $50 Steam Gift Cards```'
+      })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  const durationStr = args[0].toLowerCase();
+  const winners = parseInt(args[1]);
+  const prize = args.slice(2).join(' ');
+  
+  const timeUnits = { 's': 1000, 'm': 60000, 'h': 3600000, 'd': 86400000 };
+  const unitNames = { 's': 'second(s)', 'm': 'minute(s)', 'h': 'hour(s)', 'd': 'day(s)' };
+  
+  const unit = durationStr.slice(-1);
+  const value = parseInt(durationStr.slice(0, -1));
+  
+  if (!timeUnits[unit] || isNaN(value) || value <= 0) {
+    return message.reply({ embeds: [createErrorEmbed('Invalid duration format. Use: `10s`, `5m`, `2h`, `1d`')] });
+  }
+  
+  if (isNaN(winners) || winners < 1 || winners > 10) {
+    return message.reply({ embeds: [createErrorEmbed('Please specify 1-10 winners.')] });
+  }
+  
+  const duration = value * timeUnits[unit];
+  const endTime = Math.floor((Date.now() + duration) / 1000);
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.xp)
+    .setAuthor({ name: '🎉 GIVEAWAY', iconURL: message.guild.iconURL() })
+    .setTitle(prize)
+    .addFields(
+      { name: '🎁 Prize', value: prize, inline: true },
+      { name: '🏆 Winners', value: `${winners}`, inline: true },
+      { name: '⏱️ Ends', value: `<t:${endTime}:R>`, inline: true },
+      { name: '👤 Hosted by', value: `${message.author}`, inline: false }
+    )
+    .setFooter({ text: 'React with 🎉 to enter!' })
+    .setTimestamp();
+  
+  const giveawayMessage = await message.channel.send({ embeds: [embed] });
+  await giveawayMessage.react('🎉');
+  
+  // Store giveaway data
+  const giveawayId = `${message.channel.id}_${giveawayMessage.id}`;
+  
+  setTimeout(async () => {
+    const endedMessage = await message.channel.messages.fetch(giveawayMessage.id);
+    const reaction = endedMessage.reactions.cache.get('🎉');
+    
+    if (!reaction) {
+      const noEntries = new EmbedBuilder()
+        .setColor(COLORS.error)
+        .setAuthor({ name: '🎉 GIVEAWAY ENDED', iconURL: message.guild.iconURL() })
+        .setTitle(prize)
+        .setDescription('❌ **No valid entries!**')
+        .addFields(
+          { name: '🎁 Prize', value: prize, inline: true },
+          { name: '👤 Hosted by', value: `${message.author}`, inline: true }
+        )
+        .setFooter({ text: 'Giveaway cancelled due to no entries' })
+        .setTimestamp();
+      
+      await giveawayMessage.edit({ embeds: [noEntries] });
+      return;
+    }
+    
+    const users = await reaction.users.fetch();
+    const entrants = users.filter(u => !u.bot).map(u => u.id);
+    
+    if (entrants.length < winners) {
+      const notEnough = new EmbedBuilder()
+        .setColor(COLORS.warning)
+        .setAuthor({ name: '🎉 GIVEAWAY ENDED', iconURL: message.guild.iconURL() })
+        .setTitle(prize)
+        .setDescription(`**Not enough entrants!**\nNeed ${winners} winners but only ${entrants.length} entered.`)
+        .addFields(
+          { name: '🎁 Prize', value: prize, inline: true },
+          { name: '👤 Hosted by', value: `${message.author}`, inline: true }
+        )
+        .setFooter({ text: 'Giveaway cancelled' })
+        .setTimestamp();
+      
+      await giveawayMessage.edit({ embeds: [notEnough] });
+      return;
+    }
+    
+    // Select winners
+    const shuffled = entrants.sort(() => 0.5 - Math.random());
+    const winnerIds = shuffled.slice(0, winners);
+    const winnerMentions = winnerIds.map(id => `<@${id}>`).join(', ');
+    
+    const winnersEmbed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '🎉 GIVEAWAY ENDED', iconURL: message.guild.iconURL() })
+      .setTitle(`🎁 ${prize}`)
+      .setDescription(`**Congratulations ${winnerMentions}!**\nYou won **${prize}**!`)
+      .addFields(
+        { name: '🏆 Winners', value: winnerMentions, inline: false },
+        { name: '👤 Hosted by', value: `${message.author}`, inline: true },
+        { name: '🎫 Entries', value: `${entrants.length}`, inline: true }
+      )
+      .setFooter({ text: 'Congratulations to the winners! 🎉' })
+      .setTimestamp();
+    
+    await giveawayMessage.edit({ embeds: [winnersEmbed] });
+    await message.channel.send({ content: `🎉 **Congratulations ${winnerMentions}!** You won **${prize}**!` });
+  }, duration);
+  
+  await message.delete().catch(() => {});
+}
+
+async function ticketCommand(message, args) {
+  const categoryName = args[0] || 'Support';
+  
+  // Check if user already has open ticket
+  const existingTickets = dataStore.getUserTickets(message.guild.id, message.author.id);
+  const openTicket = existingTickets.find(t => t.status === 'open');
+  
+  if (openTicket) {
+    return message.reply({ embeds: [createErrorEmbed(`You already have an open ticket: <#${openTicket.channelId}>`)] });
+  }
+  
+  // Create ticket channel
+  const ticketNumber = Date.now().toString().slice(-6);
+  const channelName = `ticket-${message.author.username.toLowerCase()}-${ticketNumber}`;
+  
+  try {
+    const channel = await message.guild.channels.create({
+      name: channelName,
+      type: ChannelType.GuildText,
+      parent: message.channel.parentId,
+      permissionOverwrites: [
+        {
+          id: message.guild.id,
+          deny: [PermissionFlagsBits.ViewChannel]
+        },
+        {
+          id: message.author.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory
+          ]
+        },
+        {
+          id: client.user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ManageChannels,
+            PermissionFlagsBits.ManageMessages
+          ]
+        }
+      ]
+    });
+    
+    const ticketId = dataStore.createTicket(message.guild.id, message.author.id, channel.id);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.primary)
+      .setAuthor({ name: '🎫 Support Ticket', iconURL: message.author.displayAvatarURL() })
+      .setTitle(`Ticket #${ticketId.slice(-6)}`)
+      .setDescription(`Hello ${message.author}! Support will be with you shortly.\n\n**Please describe your issue:**`)
+      .addFields(
+        { name: '👤 Created by', value: `${message.author}`, inline: true },
+        { name: '📅 Created', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+        { name: '💡 Category', value: categoryName, inline: true }
+      )
+      .setFooter({ text: 'Type =close to close this ticket' })
+      .setTimestamp();
+    
+    const closeButton = new ButtonBuilder()
+      .setCustomId('close_ticket')
+      .setLabel('Close Ticket')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🔒');
+    
+    const row = new ActionRowBuilder().addComponents(closeButton);
+    
+    await channel.send({ 
+      content: `${message.author} <@&${message.guild.roles.everyone.id}>`, 
+      embeds: [embed], 
+      components: [row] 
+    });
+    
+    const successEmbed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setDescription(`✅ Ticket created: ${channel}`)
+      .setTimestamp();
+    
+    await message.reply({ embeds: [successEmbed] });
+  } catch (error) {
+    console.error('Ticket error:', error);
+    message.reply({ embeds: [createErrorEmbed('Failed to create ticket. Check bot permissions.')] });
+  }
+}
+
+async function closeTicketCommand(message) {
+  // Check if this is a ticket channel
+  if (!message.channel.name.startsWith('ticket-')) {
+    return message.reply({ embeds: [createErrorEmbed('This is not a ticket channel.')] });
+  }
+  
+  // Find ticket data
+  const tickets = dataStore.getUserTickets(message.guild.id, message.author.id);
+  const ticket = tickets.find(t => t.channelId === message.channel.id);
+  
+  if (!ticket && !isAdmin(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('Only ticket owner or admin can close tickets.')] });
+  }
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.warning)
+    .setAuthor({ name: '🔒 Closing Ticket', iconURL: message.author.displayAvatarURL() })
+    .setDescription('Are you sure you want to close this ticket?\n\nType `confirm` to close or `cancel` to keep open.')
+    .setFooter({ text: 'Ticket will be deleted in 10 seconds after closing' })
+    .setTimestamp();
+  
+  const confirmation = await message.reply({ embeds: [embed] });
+  
+  const filter = m => m.author.id === message.author.id && ['confirm', 'cancel'].includes(m.content.toLowerCase());
+  
+  try {
+    const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
+    const response = collected.first().content.toLowerCase();
+    
+    if (response === 'cancel') {
+      await message.reply({ embeds: [createSuccessEmbed('Action Cancelled', 'Ticket remains open.')] });
+      return;
+    }
+    
+    // Close ticket
+    if (ticket) {
+      dataStore.closeTicket(message.guild.id, ticket.id);
+    }
+    
+    const closedEmbed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ Ticket Closed', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`Ticket closed by ${message.author}`)
+      .setFooter({ text: 'Channel will be deleted in 10 seconds' })
+      .setTimestamp();
+    
+    await message.channel.send({ embeds: [closedEmbed] });
+    
+    // Delete channel after delay
+    setTimeout(() => {
+      message.channel.delete().catch(console.error);
+    }, 10000);
+  } catch (error) {
+    await message.reply({ embeds: [createErrorEmbed('Action cancelled or timed out.')] });
+  }
+}
+
+async function autoModCommand(message, args) {
+  if (!isAdmin(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
+  }
+  
+  if (args.length === 0) {
+    const current = dataStore.getAutoMod(message.guild.id);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '🛡️ Auto Moderation', iconURL: client.user.displayAvatarURL() })
+      .setDescription('**Usage:** `=automod <setting> <on/off>`')
+      .addFields(
+        { name: '⚙️ Settings', value: '`antilinks` - Block all links\n`antispam` - Prevent spam\n`capslock` - Block excessive caps\n`invites` - Block Discord invites', inline: false },
+        { name: '📋 Examples', value: '```=automod antilinks on\n=automod invites off\n=automod antispam on```', inline: false }
+      );
+    
+    if (Object.keys(current).length > 0) {
+      embed.addFields({
+        name: '📊 Current Settings',
+        value: Object.entries(current).map(([key, val]) => `• **${key}**: ${val ? '🟢 ON' : '🔴 OFF'}`).join('\n'),
+        inline: false
+      });
+    }
+    
+    embed.setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  const setting = args[0].toLowerCase();
+  const value = args[1]?.toLowerCase();
+  
+  const validSettings = ['antilinks', 'antispam', 'capslock', 'invites'];
+  
+  if (!validSettings.includes(setting)) {
+    return message.reply({ embeds: [createErrorEmbed(`Invalid setting. Use: ${validSettings.join(', ')}`)] });
+  }
+  
+  if (!value || !['on', 'off'].includes(value)) {
+    return message.reply({ embeds: [createErrorEmbed('Please specify `on` or `off`.')] });
+  }
+  
+  const enabled = value === 'on';
+  dataStore.setAutoMod(message.guild.id, { [setting]: enabled });
+  
+  const embed = new EmbedBuilder()
+    .setColor(enabled ? COLORS.success : COLORS.warning)
+    .setAuthor({ name: '✅ Auto Mod Updated', iconURL: message.author.displayAvatarURL() })
+    .setDescription(`**${setting}** has been turned **${value.toUpperCase()}**`)
+    .setFooter({ text: `Modified by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function blacklistCommand(message, args) {
+  if (!isAdmin(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
+  }
+  
+  const subcommand = args[0]?.toLowerCase();
+  
+  if (!subcommand || !['add', 'remove', 'list', 'clear'].includes(subcommand)) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '🚫 Word Blacklist', iconURL: client.user.displayAvatarURL() })
+      .setDescription('**Usage:** `=blacklist <add|remove|list|clear> [word]`')
+      .addFields(
+        { name: '📋 Examples', value: '```=blacklist add badword\n=blacklist remove badword\n=blacklist list\n=blacklist clear```', inline: false }
+      )
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  if (subcommand === 'list') {
+    const blacklist = dataStore.getBlacklist(message.guild.id);
+    
+    if (blacklist.length === 0) {
+      return message.reply({ embeds: [createErrorEmbed('No words in blacklist.')] });
+    }
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.primary)
+      .setAuthor({ name: '🚫 Blacklisted Words', iconURL: message.guild.iconURL() })
+      .setDescription(blacklist.map(w => `• \`${w}\``).join('\n'))
+      .setFooter({ text: `Total: ${blacklist.length} words` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    return;
+  }
+  
+  if (subcommand === 'clear') {
+    dataStore.setAutoMod(message.guild.id, { blacklist: [] });
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ Blacklist Cleared', iconURL: message.author.displayAvatarURL() })
+      .setDescription('All words have been removed from the blacklist.')
+      .setFooter({ text: `Cleared by ${message.author.tag}` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    return;
+  }
+  
+  const word = args[1];
+  if (!word) {
+    return message.reply({ embeds: [createErrorEmbed('Please specify a word.')] });
+  }
+  
+  if (subcommand === 'add') {
+    dataStore.addBlacklistWord(message.guild.id, word);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ Word Blacklisted', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**\`${word}\`** has been added to the blacklist.`)
+      .setFooter({ text: `Added by ${message.author.tag}` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  } else if (subcommand === 'remove') {
+    dataStore.removeBlacklistWord(message.guild.id, word);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ Word Removed', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**\`${word}\`** has been removed from the blacklist.`)
+      .setFooter({ text: `Removed by ${message.author.tag}` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  }
+}
+
+async function editLogsCommand(message, args) {
+  if (!isMod(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
+  }
+  
+  const channel = message.mentions.channels.first() || message.channel;
+  const logs = editedMessages.get(channel.id) || [];
+  
+  if (logs.length === 0) {
+    return message.reply({ embeds: [createErrorEmbed('No edited messages found in this channel.')] });
+  }
+  
+  const latest = logs[0];
+  const timeAgo = Math.floor((Date.now() - latest.timestamp) / 1000);
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.info)
+    .setAuthor({ name: '📝 Edit Logs', iconURL: message.author.displayAvatarURL() })
+    .setDescription(`**Edited Message from ${latest.author}**`)
+    .addFields(
+      { name: '📝 Before', value: latest.oldContent.length > 500 ? `${latest.oldContent.substring(0, 500)}...` : latest.oldContent || '*(Empty)*', inline: false },
+      { name: '📝 After', value: latest.newContent.length > 500 ? `${latest.newContent.substring(0, 500)}...` : latest.newContent || '*(Empty)*', inline: false },
+      { name: '🕐 Edited', value: `<t:${Math.floor(latest.timestamp / 1000)}:R>`, inline: true },
+      { name: '👤 User ID', value: `\`${latest.authorId}\``, inline: true }
+    )
+    .setFooter({ text: `Message ID: ${latest.messageId} | Showing latest of ${logs.length} edits` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function userLogsCommand(message, args) {
+  if (!isMod(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
+  }
+  
+  const userId = extractId(args[0]);
+  if (!userId) return message.reply({ embeds: [createErrorEmbed('Please mention a user or provide user ID.')] });
+  
+  const user = await message.guild.members.fetch(userId).catch(() => null);
+  if (!user) return message.reply({ embeds: [createErrorEmbed('User not found.')] });
+  
+  // Get warnings
+  const warnings = dataStore.getWarnings(message.guild.id, userId);
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setAuthor({ name: `📋 User Logs - ${user.user.tag}`, iconURL: user.user.displayAvatarURL() })
+    .addFields(
+      { name: '👤 User', value: `${user.user.tag} (\`${user.id}\`)`, inline: false },
+      { name: '📅 Joined', value: `<t:${Math.floor(user.joinedTimestamp / 1000)}:R>`, inline: true },
+      { name: '📅 Created', value: `<t:${Math.floor(user.user.createdTimestamp / 1000)}:R>`, inline: true }
+    );
+  
+  if (warnings.length > 0) {
+    embed.addFields({
+      name: `⚠️ Warnings (${warnings.length})`,
+      value: warnings.map((w, i) => `${i + 1}. ${w.reason}`).join('\n').substring(0, 1000),
+      inline: false
+    });
+  } else {
+    embed.addFields({ name: '⚠️ Warnings', value: '✅ No warnings', inline: false });
+  }
+  
+  embed.setFooter({ text: `Requested by ${message.author.tag}` }).setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+// ==================== FIX RANK COMMAND ERROR ====================
+
+// Yeh wala function fix karein:
+async function rankCommand(message, args) {
+  const userId = args[0] ? extractId(args[0]) : message.author.id;
+  
+  try {
+    const user = await message.guild.members.fetch(userId).catch(() => null);
+    if (!user) return message.reply({ embeds: [createErrorEmbed('User not found')] });
+    
+    const xpData = dataStore.getUserXP(message.guild.id, user.id) || { xp: 0, level: 1 };
+    const levelData = getLevelFromXP(xpData.xp);
+    const progress = Math.floor((xpData.xp % XP_CONFIG.LEVEL_MULTIPLIER) / XP_CONFIG.LEVEL_MULTIPLIER * 100);
+    
+    // Get rank position
+    const allXP = dataStore.getAllXP(message.guild.id);
+    const sortedUsers = Object.entries(allXP)
+      .sort((a, b) => (b[1].xp || 0) - (a[1].xp || 0));
+    
+    const rank = sortedUsers.findIndex(([id]) => id === user.id) + 1;
+    if (rank === 0) {
+      // User not in XP data yet
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.xp)
+        .setAuthor({ name: `${user.user.tag}'s Rank`, iconURL: user.user.displayAvatarURL() })
+        .setThumbnail(user.user.displayAvatarURL())
+        .addFields(
+          { name: '📊 Rank', value: 'Not ranked yet', inline: true },
+          { name: '⭐ Level', value: '1', inline: true },
+          { name: '🎯 XP', value: '0', inline: true },
+          { name: '💡 Tip', value: 'Start chatting to earn XP!', inline: false }
+        )
+        .setTimestamp();
+      
+      return message.reply({ embeds: [embed] });
+    }
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.xp)
+      .setAuthor({ name: `${user.user.tag}'s Rank`, iconURL: user.user.displayAvatarURL() })
+      .setThumbnail(user.user.displayAvatarURL())
+      .addFields(
+        { name: '📊 Rank', value: `#${rank}`, inline: true },
+        { name: '⭐ Level', value: `${levelData.level}`, inline: true },
+        { name: '🎯 XP', value: `${xpData.xp}`, inline: true },
+        { name: '📈 Progress', value: `${progress}% to Level ${levelData.level + 1}`, inline: false },
+        { name: '🎯 Next Level', value: `${levelData.nextLevelXP - xpData.xp} XP needed`, inline: false }
+      )
+      .setFooter({ text: `Ranking: ${rank}/${sortedUsers.length} players` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Rank command error:', error);
+    message.reply({ embeds: [createErrorEmbed('Failed to get rank information.')] });
+  }
+}
+
+// ==================== FIX READY EVENT DEPRECATION WARNING ====================
+
+// Yeh change karein ready event handler mein:
+client.on('ready', async () => {
+  console.log(`✅ Bot is online! Logged in as ${client.user.tag}`);
+  console.log(`📊 Serving ${client.guilds.cache.size} servers`);
+  
+  // Set bot activity
+  client.user.setActivity({
+    name: `=help | ${client.guilds.cache.size} servers`,
+    type: ActivityType.Playing
+  });
+  
+  // Set status
+  client.user.setStatus('online');
+});
+
+// Ya fir ise replace karein:
+client.once('clientReady', async (readyClient) => {
+  console.log(`✅ Bot is online! Logged in as ${readyClient.user.tag}`);
+  console.log(`📊 Serving ${readyClient.guilds.cache.size} servers`);
+  
+  // Set bot activity
+  readyClient.user.setActivity({
+    name: `=help | ${readyClient.guilds.cache.size} servers`,
+    type: ActivityType.Playing
+  });
+  
+  // Set status
+  readyClient.user.setStatus('online');
+});
 
 // ==================== BOT STARTUP ====================
 
