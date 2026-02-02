@@ -1,3 +1,58 @@
+const { Client, GatewayIntentBits, Partials, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, REST, Routes } = require('discord.js');
+const axios = require('axios');
+const { evaluate } = require('mathjs');
+const dataStore = require('./data');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessageReactions,
+  ],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User]
+});
+
+const PREFIX = '=';
+
+// --- ALL CATEGORIES FOR HELP MENU ---
+const CATEGORIES = {
+  games: "akinator, animalguess, flagguess, trivia, rps, ttt, hangman, slots, mines, pokeguess, mathrace, wordchain, scramble, fast-type, memory",
+  fun: "meme, joke, quote, fact, tweet, slap, hug, kiss, punch, pat, wink, kill, dance, cuddle, bonk, ship, 8ball, roast, insult, ascii, reverse",
+  anime: "waifu, neko, shinobu, megumin, bully, blush, smile, wave, highfive, handhold, bite, glomp, baka, cringe",
+  crypto: "bal, txid, convert, price, chart, gas, btc, eth, ltc, sol, wallet, history",
+  utils: "calc, remind, translate, weather, poll, ping, uptime, stats, urban, shorten, qr, avatar, banner, ui, serverinfo",
+  admin: "warn, kick, ban, unban, mute, clear, lock, rr, verify, msgcount, backup, announce, dm-all"
+};
+
+// --- SLASH COMMANDS REGISTRATION ---
+const slashCommands = [
+  new SlashCommandBuilder().setName('help').setDescription('Check all 150+ commands'),
+  new SlashCommandBuilder().setName('game').setDescription('Play a random game'),
+  new SlashCommandBuilder().setName('meme').setDescription('Get a fresh meme'),
+  new SlashCommandBuilder().setName('ping').setDescription('Check bot speed')
+];
+
+client.once('ready', async () => {
+  console.log(`Bot Ready! Logged in as ${client.user.tag}`);
+  const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
+  try {
+    await rest.put(Routes.applicationCommands(client.user.id), { body: slashCommands });
+    console.log('Slash commands registered successfully!');
+  } catch (err) { console.error(err); }
+});
+
+client.on('messageCreate', async (message) => {
+  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
+
+  // ========================================================
+  // ⬇️ PASTE YOUR OLD 1750 LINES CODE BELOW THIS ARROW ⬇️
+  // ⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️⬇️
+  
 module.exports = (client) => {
   const prefix = process.env.PREFIX || "=";
 
@@ -1737,3 +1792,69 @@ client.once('ready', async () => {
 });
 
 module.exports = { client };
+
+  // ⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️⬆️
+  // ========================================================
+
+  // --- NEW MASSIVE GAMES ENGINE ---
+
+  // 1. Help Command (The Ultimate Menu)
+  if (command === 'help') {
+    const embed = new EmbedBuilder()
+      .setTitle('🔥 Ultimate Master Bot | 150+ Commands')
+      .setColor('#00FFFF')
+      .setThumbnail(client.user.displayAvatarURL())
+      .addFields(
+        { name: '🎮 Games (New!)', value: `\`${CATEGORIES.games}\`` },
+        { name: '🎭 Fun & Anime', value: `\`${CATEGORIES.fun}\n${CATEGORIES.anime}\`` },
+        { name: '💰 Crypto & Economy', value: `\`${CATEGORIES.crypto}\`` },
+        { name: '🛠️ Utilities & Admin', value: `\`${CATEGORIES.utils}\n${CATEGORIES.admin}\`` }
+      )
+      .setFooter({ text: 'Use prefix = for all commands' });
+    return message.reply({ embeds: [embed] });
+  }
+
+  // 2. Game: Pokemon Guess
+  if (command === 'pokeguess') {
+    const pokemon = ['Pikachu', 'Charizard', 'Bulbasaur', 'Mewtwo', 'Lucario'];
+    const pkm = pokemon[Math.floor(Math.random() * pokemon.length)];
+    message.reply(`Who's that Pokemon? Hint: Starts with **${pkm[0]}** and has **${pkm.length}** letters.`);
+  }
+
+  // 3. Game: Math Race
+  if (command === 'mathrace') {
+    const n1 = Math.floor(Math.random() * 100);
+    const n2 = Math.floor(Math.random() * 100);
+    const ans = n1 + n2;
+    message.reply(`Quick! What is **${n1} + ${n2}**? (You have 10 seconds)`);
+    const filter = m => m.content === ans.toString() && m.author.id === message.author.id;
+    message.channel.awaitMessages({ filter, max: 1, time: 10000 }).then(() => message.reply('✅ Fast AF! You won!')).catch(() => message.reply(`Too slow! Answer was ${ans}`));
+  }
+
+  // 4. Anime Interaction (Full Set)
+  const actions = ['slap', 'hug', 'kiss', 'punch', 'pat', 'kill', 'cuddle', 'wink', 'dance', 'highfive', 'wave', 'smile'];
+  if (actions.includes(command)) {
+    const target = message.mentions.users.first();
+    if (!target) return message.reply('Tag someone first!');
+    const res = await axios.get(`https://nekos.best/api/v2/${command}`).catch(() => null);
+    if (res) {
+        const embed = new EmbedBuilder()
+            .setDescription(`**${message.author.username}** ${command}s **${target.username}**!`)
+            .setImage(res.data.results[0].url)
+            .setColor('Random');
+        message.reply({ embeds: [embed] });
+    }
+  }
+});
+
+// --- SLASH COMMAND INTERACTION ---
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === 'ping') await interaction.reply(`Latency: ${client.ws.ping}ms`);
+  if (interaction.commandName === 'meme') {
+    const res = await axios.get('https://meme-api.com/gimme');
+    await interaction.reply(res.data.url);
+  }
+});
+
+client.login(process.env.DISCORD_BOT_TOKEN);
