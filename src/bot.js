@@ -1,55 +1,180 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActivityType, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Partials } = require('discord.js');
 const { evaluate } = require('mathjs');
 const axios = require('axios');
-const dataStore = require('./data');
+const fs = require('fs');
 
 const PREFIX = '=';
 
-// XP System Configuration
+// ==================== ADVANCED XP SYSTEM ====================
 const XP_CONFIG = {
-  PER_MESSAGE: 5,
-  PER_GAME_WIN: 50,
-  PER_GAME_PARTICIPATION: 20,
-  DAILY_BONUS: 100,
-  LEVEL_MULTIPLIER: 100
+  PER_MESSAGE: 1,
+  PER_GAME_WIN: 10,
+  PER_GAME_PARTICIPATION: 2,
+  DAILY_BONUS: 20,
+  LEVEL_MULTIPLIER: 150,
+  LEVEL_EXPONENT: 1.5,
+  MAX_LEVEL: 100
 };
 
-// Animal list for guessing game
-const ANIMALS = [
-  'lion', 'tiger', 'elephant', 'giraffe', 'zebra', 'kangaroo', 'panda', 'koala',
-  'rhinoceros', 'hippopotamus', 'crocodile', 'alligator', 'cheetah', 'leopard',
-  'gorilla', 'chimpanzee', 'orangutan', 'wolf', 'fox', 'bear', 'polar bear',
-  'penguin', 'eagle', 'hawk', 'owl', 'parrot', 'flamingo', 'peacock', 'dolphin',
-  'whale', 'shark', 'octopus', 'jellyfish', 'crab', 'lobster', 'starfish',
-  'butterfly', 'dragonfly', 'bee', 'ant', 'spider', 'scorpion', 'snake',
-  'cobra', 'python', 'rattlesnake', 'turtle', 'tortoise', 'frog', 'toad'
-];
+// ==================== COUNTRIES BY DIFFICULTY ====================
+const COUNTRIES = {
+  easy: [ // Popular countries
+    { name: 'United States', flag: '🇺🇸', code: 'us' },
+    { name: 'United Kingdom', flag: '🇬🇧', code: 'gb' },
+    { name: 'Canada', flag: '🇨🇦', code: 'ca' },
+    { name: 'Australia', flag: '🇦🇺', code: 'au' },
+    { name: 'Germany', flag: '🇩🇪', code: 'de' },
+    { name: 'France', flag: '🇫🇷', code: 'fr' },
+    { name: 'Japan', flag: '🇯🇵', code: 'jp' },
+    { name: 'China', flag: '🇨🇳', code: 'cn' },
+    { name: 'India', flag: '🇮🇳', code: 'in' },
+    { name: 'Brazil', flag: '🇧🇷', code: 'br' }
+  ],
+  medium: [ // Less common but still known
+    { name: 'Italy', flag: '🇮🇹', code: 'it' },
+    { name: 'Spain', flag: '🇪🇸', code: 'es' },
+    { name: 'Mexico', flag: '🇲🇽', code: 'mx' },
+    { name: 'Russia', flag: '🇷🇺', code: 'ru' },
+    { name: 'South Korea', flag: '🇰🇷', code: 'kr' },
+    { name: 'Turkey', flag: '🇹🇷', code: 'tr' },
+    { name: 'Pakistan', flag: '🇵🇰', code: 'pk' },
+    { name: 'Egypt', flag: '🇪🇬', code: 'eg' },
+    { name: 'South Africa', flag: '🇿🇦', code: 'za' },
+    { name: 'Argentina', flag: '🇦🇷', code: 'ar' }
+  ],
+  hard: [ // Harder to recognize
+    { name: 'Netherlands', flag: '🇳🇱', code: 'nl' },
+    { name: 'Switzerland', flag: '🇨🇭', code: 'ch' },
+    { name: 'Sweden', flag: '🇸🇪', code: 'se' },
+    { name: 'Norway', flag: '🇳🇴', code: 'no' },
+    { name: 'Denmark', flag: '🇩🇰', code: 'dk' },
+    { name: 'Finland', flag: '🇫🇮', code: 'fi' },
+    { name: 'Poland', flag: '🇵🇱', code: 'pl' },
+    { name: 'Portugal', flag: '🇵🇹', code: 'pt' },
+    { name: 'Greece', flag: '🇬🇷', code: 'gr' },
+    { name: 'Thailand', flag: '🇹🇭', code: 'th' }
+  ],
+  extreme: [ // Very hard flags
+    { name: 'Bangladesh', flag: '🇧🇩', code: 'bd' },
+    { name: 'Vietnam', flag: '🇻🇳', code: 'vn' },
+    { name: 'Philippines', flag: '🇵🇭', code: 'ph' },
+    { name: 'Malaysia', flag: '🇲🇾', code: 'my' },
+    { name: 'Indonesia', flag: '🇮🇩', code: 'id' },
+    { name: 'Saudi Arabia', flag: '🇸🇦', code: 'sa' },
+    { name: 'United Arab Emirates', flag: '🇦🇪', code: 'ae' },
+    { name: 'Israel', flag: '🇮🇱', code: 'il' },
+    { name: 'Iran', flag: '🇮🇷', code: 'ir' },
+    { name: 'Ukraine', flag: '🇺🇦', code: 'ua' }
+  ]
+};
 
-// Country flags for guessing game
-const COUNTRIES = [
-  { name: 'United States', flag: '🇺🇸', code: 'us' },
-  { name: 'United Kingdom', flag: '🇬🇧', code: 'gb' },
-  { name: 'Canada', flag: '🇨🇦', code: 'ca' },
-  { name: 'Australia', flag: '🇦🇺', code: 'au' },
-  { name: 'Germany', flag: '🇩🇪', code: 'de' },
-  { name: 'France', flag: '🇫🇷', code: 'fr' },
-  { name: 'Japan', flag: '🇯🇵', code: 'jp' },
-  { name: 'China', flag: '🇨🇳', code: 'cn' },
-  { name: 'India', flag: '🇮🇳', code: 'in' },
-  { name: 'Brazil', flag: '🇧🇷', code: 'br' },
-  { name: 'Russia', flag: '🇷🇺', code: 'ru' },
-  { name: 'Italy', flag: '🇮🇹', code: 'it' },
-  { name: 'Spain', flag: '🇪🇸', code: 'es' },
-  { name: 'Mexico', flag: '🇲🇽', code: 'mx' },
-  { name: 'South Korea', flag: '🇰🇷', code: 'kr' },
-  { name: 'Pakistan', flag: '🇵🇰', code: 'pk' },
-  { name: 'Bangladesh', flag: '🇧🇩', code: 'bd' },
-  { name: 'Turkey', flag: '🇹🇷', code: 'tr' },
-  { name: 'Egypt', flag: '🇪🇬', code: 'eg' },
-  { name: 'South Africa', flag: '🇿🇦', code: 'za' }
-];
+// ==================== ANIMALS BY DIFFICULTY ====================
+const ANIMALS = {
+  easy: [ // Common animals everyone knows
+    'lion', 'tiger', 'elephant', 'giraffe', 'zebra',
+    'bear', 'wolf', 'fox', 'monkey', 'kangaroo',
+    'panda', 'koala', 'crocodile', 'hippo', 'rhino'
+  ],
+  medium: [ // Less common but still known
+    'cheetah', 'leopard', 'gorilla', 'chimpanzee', 'orangutan',
+    'penguin', 'dolphin', 'whale', 'shark', 'octopus',
+    'eagle', 'hawk', 'owl', 'parrot', 'flamingo'
+  ],
+  hard: [ // Harder to guess animals
+    'anteater', 'armadillo', 'platypus', 'wombat', 'meerkat',
+    'lynx', 'jaguar', 'puma', 'hyena', 'mongoose',
+    'walrus', 'seal', 'otter', 'beaver', 'raccoon'
+  ],
+  extreme: [ // Very rare/exotic animals
+    'aardvark', 'okapi', 'narwhal', 'quokka', 'tarsier',
+    'axolotl', 'capybara', 'pangolin', 'lemur', 'tapir',
+    'manatee', 'sloth', 'porcupine', 'wolverine', 'marmoset'
+  ]
+};
 
-// Helper function to extract numeric ID from mentions or raw ID
+// ==================== DATA STORAGE ====================
+class DataStore {
+  constructor() {
+    this.data = {
+      xp: {},
+      warnings: {},
+      reputation: {},
+      messageCounts: {},
+      dailies: {},
+      activeGames: new Map(),
+      deletedMessages: new Map(),
+      editedMessages: new Map()
+    };
+    this.loadData();
+  }
+  
+  loadData() {
+    try {
+      if (fs.existsSync('bot_data.json')) {
+        const raw = fs.readFileSync('bot_data.json', 'utf8');
+        const saved = JSON.parse(raw);
+        Object.assign(this.data, saved);
+      }
+    } catch (error) {
+      console.log('Starting fresh');
+    }
+  }
+  
+  saveData() {
+    try {
+      const toSave = { ...this.data };
+      fs.writeFileSync('bot_data.json', JSON.stringify(toSave, null, 2));
+    } catch (error) {
+      console.error('Save error:', error);
+    }
+  }
+  
+  // XP Methods
+  getUserXP(guildId, userId) {
+    if (!this.data.xp[guildId]) this.data.xp[guildId] = {};
+    if (!this.data.xp[guildId][userId]) {
+      this.data.xp[guildId][userId] = { xp: 0, level: 1, messages: 0, gamesWon: 0 };
+    }
+    return this.data.xp[guildId][userId];
+  }
+  
+  setUserXP(guildId, userId, data) {
+    if (!this.data.xp[guildId]) this.data.xp[guildId] = {};
+    this.data.xp[guildId][userId] = data;
+    this.saveData();
+  }
+  
+  getAllXP(guildId) {
+    return this.data.xp[guildId] || {};
+  }
+  
+  // Daily Methods
+  getDailyCooldown(userId, guildId) {
+    const key = `${userId}_${guildId}`;
+    return this.data.dailies[key] || 0;
+  }
+  
+  setDailyCooldown(userId, guildId) {
+    const key = `${userId}_${guildId}`;
+    this.data.dailies[key] = Date.now();
+    this.saveData();
+  }
+  
+  // Message Count
+  incrementMessageCount(guildId) {
+    if (!this.data.messageCounts[guildId]) this.data.messageCounts[guildId] = 0;
+    this.data.messageCounts[guildId]++;
+    this.saveData();
+  }
+  
+  getMessageCount(guildId) {
+    return this.data.messageCounts[guildId] || 0;
+  }
+}
+
+const dataStore = new DataStore();
+
+// ==================== HELPER FUNCTIONS ====================
 function extractId(input) {
   if (!input) return null;
   const match = input.match(/\d+/);
@@ -62,16 +187,98 @@ const COLORS = {
   warning: 0xFEE75C,
   error: 0xED4245,
   info: 0x5865F2,
-  crypto: {
-    btc: 0xF7931A,
-    ltc: 0x345D9D,
-    eth: 0x627EEA,
-    sol: 0x9945FF
-  },
   game: 0x9B59B6,
-  xp: 0xF1C40F
+  xp: 0xF1C40F,
+  fun: 0xE91E63
 };
 
+// XP Calculation
+function calculateXPForLevel(level) {
+  return Math.floor(XP_CONFIG.LEVEL_MULTIPLIER * Math.pow(level, XP_CONFIG.LEVEL_EXPONENT));
+}
+
+function getLevelFromXP(xp) {
+  let level = 1;
+  let totalXP = 0;
+  
+  while (true) {
+    const needed = calculateXPForLevel(level);
+    totalXP += needed;
+    
+    if (xp < totalXP || level >= XP_CONFIG.MAX_LEVEL) {
+      break;
+    }
+    level++;
+  }
+  
+  const currentLevelXP = calculateXPForLevel(level);
+  const nextLevelXP = calculateXPForLevel(level + 1);
+  const xpInCurrent = xp - (level > 1 ? calculateXPForLevel(level - 1) : 0);
+  
+  return {
+    level: Math.min(level, XP_CONFIG.MAX_LEVEL),
+    currentXP: xp,
+    nextLevelXP: nextLevelXP,
+    xpInCurrentLevel: xpInCurrent,
+    requiredForNext: nextLevelXP - xpInCurrent,
+    progress: Math.floor((xpInCurrent / currentLevelXP) * 100)
+  };
+}
+
+function addXP(userId, guildId, amount, reason = '') {
+  const currentData = dataStore.getUserXP(guildId, userId);
+  const newXP = currentData.xp + amount;
+  const newLevelData = getLevelFromXP(newXP);
+  
+  currentData.xp = newXP;
+  currentData.level = newLevelData.level;
+  
+  dataStore.setUserXP(guildId, userId, currentData);
+  
+  if (newLevelData.level > currentData.level) {
+    return {
+      levelUp: true,
+      oldLevel: currentData.level,
+      newLevel: newLevelData.level,
+      xp: newXP,
+      levelData: newLevelData
+    };
+  }
+  
+  return { levelUp: false, xp: newXP, level: newLevelData.level, levelData: newLevelData };
+}
+
+// Permissions
+function isAdmin(member) {
+  return member.permissions.has(PermissionFlagsBits.Administrator) || 
+         member.permissions.has(PermissionFlagsBits.ManageGuild) ||
+         member.id === member.guild.ownerId;
+}
+
+function isMod(member) {
+  return isAdmin(member) || 
+         member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+         member.permissions.has(PermissionFlagsBits.KickMembers) ||
+         member.permissions.has(PermissionFlagsBits.BanMembers);
+}
+
+// Embed Functions
+function createErrorEmbed(description) {
+  return new EmbedBuilder()
+    .setColor(COLORS.error)
+    .setDescription(`❌ **Error**\n${description}`)
+    .setTimestamp();
+}
+
+function createSuccessEmbed(title, description) {
+  return new EmbedBuilder()
+    .setColor(COLORS.success)
+    .setTitle(`✅ ${title}`)
+    .setDescription(description)
+    .setTimestamp();
+}
+
+// ==================== CLIENT SETUP ====================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -92,1972 +299,593 @@ const client = new Client({
 
 // Active Games Storage
 const activeGames = new Map();
-const deletedMessages = new Map();
-const editedMessages = new Map();
 
-// XP System Functions
-function calculateXPForLevel(level) {
-  return level * XP_CONFIG.LEVEL_MULTIPLIER;
-}
-
-function getLevelFromXP(xp) {
-  let level = 0;
-  let requiredXP = 0;
-  
-  while (xp >= requiredXP) {
-    level++;
-    requiredXP = calculateXPForLevel(level);
-  }
-  
-  return { level: level - 1, currentXP: xp, nextLevelXP: requiredXP };
-}
-
-function addXP(userId, guildId, amount, reason = '') {
-  const currentData = dataStore.getUserXP(guildId, userId) || { xp: 0, level: 1 };
-  const newXP = currentData.xp + amount;
-  const newLevelData = getLevelFromXP(newXP);
-  
-  dataStore.setUserXP(guildId, userId, { xp: newXP, level: newLevelData.level });
-  
-  // Check for level up
-  if (newLevelData.level > currentData.level) {
-    return { levelUp: true, oldLevel: currentData.level, newLevel: newLevelData.level, xp: newXP };
-  }
-  
-  return { levelUp: false, xp: newXP, level: newLevelData.level };
-}
-
-// ==================== MESSAGE EVENT HANDLER ====================
-
-client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
-  
-  if (message.guild) {
-    // Increment message count
-    dataStore.incrementMessageCount(message.guild.id);
-    
-    // Add XP for message
-    const xpResult = addXP(message.author.id, message.guild.id, XP_CONFIG.PER_MESSAGE, 'message');
-    if (xpResult.levelUp) {
-      const levelEmbed = new EmbedBuilder()
-        .setColor(COLORS.xp)
-        .setAuthor({ name: '🎉 Level Up!', iconURL: message.author.displayAvatarURL() })
-        .setDescription(`**${message.author}** has reached **Level ${xpResult.newLevel}**!`)
-        .setFooter({ text: 'Keep chatting to level up more!' })
-        .setTimestamp();
-      
-      message.channel.send({ embeds: [levelEmbed] }).catch(() => {});
-    }
-  }
-  
-  if (!message.content.startsWith(PREFIX)) {
-    // Check for active games
-    const gameId = `${message.channel.id}_${message.author.id}`;
-    if (activeGames.has(gameId)) {
-      await handleGameGuess(message, gameId);
-    }
-    return;
-  }
-
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
-
-  try {
-    switch (command) {
-      // Original Commands
-      case 'help': await helpCommand(message); break;
-      case 'ping': await pingCommand(message); break;
-      case 'serverinfo': await serverInfoCommand(message); break;
-      case 'ui': await userInfoCommand(message, args); break;
-      case 'avatar': await avatarCommand(message, args); break;
-      case 'banner': await bannerCommand(message, args); break;
-      case 'calc': await calcCommand(message, args); break;
-      case 'remind': await remindCommand(message, args); break;
-      case 'convert': await convertCommand(message, args); break;
-      case 'translate': await translateCommand(message, args); break;
-      case 'bal': await balCommand(message, args); break;
-      case 'txid': await txidCommand(message, args); break;
-      case 'vouch': await vouchCommand(message, args); break;
-      case 'evouch': await evouchCommand(message, args); break;
-      case 'rr': await setupReactionRole(message, args); break;
-      case 'r': await useReactionRole(message, args); break;
-      case 'addar': await addToReactionRole(message, args); break;
-      case 'delar': await removeFromReactionRole(message, args); break;
-      case 'listar': await listReactionRoles(message); break;
-      case 'verify': await verifyUser(message, args); break;
-      case 'unverify': await unverifyUser(message, args); break;
-      case 'verifypanel': await sendVerifyPanel(message, args); break;
-      case 'msgcount': await messageCount(message); break;
-      case 'warn': await warnUser(message, args); break;
-      case 'warnings': await checkWarnings(message, args); break;
-      case 'clearwarn': await clearWarnUser(message, args); break;
-      case 'kick': await kickUser(message, args); break;
-      case 'ban': await banUser(message, args); break;
-      case 'unban': await unbanUser(message, args); break;
-      case 'mute': await muteUser(message, args); break;
-      case 'unmute': await unmuteUser(message, args); break;
-      case 'clear': await clearMessages(message, args); break;
-      case '8ball': await eightBall(message, args); break;
-      case 'dice': await rollDice(message, args); break;
-      case 'coin': await flipCoin(message); break;
-      case 'joke': await getJoke(message); break;
-      case 'quote': await getQuote(message); break;
-      case 'rep': await giveReputation(message, args); break;
-      case 'getrep': await getReputationCommand(message, args); break;
-      case 'poll': await createPoll(message, args); break;
-      case 'botinfo': await botInfo(message); break;
-      case 'weather': await getWeather(message, args); break;
-      case 'addrole': await addRoleCommand(message, args); break;
-      case 'removerole': await removeRoleCommand(message, args); break;
-      case 'timeout': await timeoutUser(message, args); break;
-      case 'changenick': await changeNickname(message, args); break;
-      
-      // New Mini Games
-      case 'flag': await flagGameCommand(message, args); break;
-      case 'animal': await animalGameCommand(message, args); break;
-      case 'hangman': await hangmanGameCommand(message, args); break;
-      case 'trivia': await triviaGameCommand(message, args); break;
-      case 'rps': await rpsGameCommand(message, args); break;
-      case 'number': await numberGameCommand(message, args); break;
-      case 'wordchain': await wordChainGameCommand(message, args); break;
-      
-      // New Moderation Commands
-      case 'slowmode': await slowmodeCommand(message, args); break;
-      case 'lock': await lockChannelCommand(message, args); break;
-      case 'unlock': await unlockChannelCommand(message, args); break;
-      case 'nuke': await nukeChannelCommand(message, args); break;
-      case 'roleinfo': await roleInfoCommand(message, args); break;
-      case 'roleall': await roleAllCommand(message, args); break;
-      case 'stealemoji': await stealEmojiCommand(message, args); break;
-      case 'advancedpoll': await advancedPollCommand(message, args); break;
-      case 'giveaway': await giveawayCommand(message, args); break;
-      case 'ticket': await ticketCommand(message, args); break;
-      case 'close': await closeTicketCommand(message); break;
-      case 'automod': await autoModCommand(message, args); break;
-      case 'blacklist': await blacklistCommand(message, args); break;
-      case 'snipe': await snipeCommand(message); break;
-      case 'editlogs': await editLogsCommand(message, args); break;
-      case 'userlogs': await userLogsCommand(message, args); break;
-      
-      // XP System Commands
-      case 'rank': await rankCommand(message, args); break;
-      case 'leaderboard': await leaderboardCommand(message, args); break;
-      case 'daily': await dailyCommand(message); break;
-      case 'xp': await xpInfoCommand(message, args); break;
-      
-      default:
-        // Check if it's a game guess
-        const gameId = `${message.channel.id}_${message.author.id}`;
-        if (activeGames.has(gameId)) {
-          await handleGameGuess(message, gameId);
-        }
-        break;
-    }
-  } catch (error) {
-    console.error(`Error executing command ${command}:`, error);
-    const errorEmbed = createErrorEmbed('An error occurred while processing your request.');
-    message.reply({ embeds: [errorEmbed] });
-  }
-});
-
-// Store deleted messages for snipe
-client.on('messageDelete', async (message) => {
-  if (message.author.bot) return;
-  
-  const channelId = message.channel.id;
-  if (!deletedMessages.has(channelId)) {
-    deletedMessages.set(channelId, []);
-  }
-  
-  const messages = deletedMessages.get(channelId);
-  messages.unshift({
-    content: message.content,
-    author: message.author.tag,
-    authorId: message.author.id,
-    timestamp: Date.now(),
-    attachments: message.attachments.size > 0 ? Array.from(message.attachments.values()).map(a => a.url) : []
-  });
-  
-  // Keep only last 10 deleted messages per channel
-  if (messages.length > 10) {
-    messages.pop();
-  }
-});
-
-// Store edited messages for edit logs
-client.on('messageUpdate', async (oldMessage, newMessage) => {
-  if (oldMessage.author.bot || oldMessage.content === newMessage.content) return;
-  
-  const channelId = oldMessage.channel.id;
-  if (!editedMessages.has(channelId)) {
-    editedMessages.set(channelId, []);
-  }
-  
-  const messages = editedMessages.get(channelId);
-  messages.unshift({
-    oldContent: oldMessage.content,
-    newContent: newMessage.content,
-    author: oldMessage.author.tag,
-    authorId: oldMessage.author.id,
-    messageId: oldMessage.id,
-    timestamp: Date.now()
-  });
-  
-  if (messages.length > 10) {
-    messages.pop();
-  }
-});
-
-client.on('messageReactionAdd', async (reaction, user) => {
-  if (user.bot) return;
-  
-  try {
-    if (reaction.partial) await reaction.fetch();
-    
-    const reactionRoles = dataStore.getReactionRoles();
-    
-    for (const [name, config] of Object.entries(reactionRoles)) {
-      if (config.messageId === reaction.message.id) {
-        const emoji = reaction.emoji.id ? `<:${reaction.emoji.name}:${reaction.emoji.id}>` : reaction.emoji.name;
-        const roleConfig = config.roles.find(r => r.emoji === emoji || r.emoji === reaction.emoji.name);
-        
-        if (roleConfig) {
-          const guild = reaction.message.guild;
-          const member = await guild.members.fetch(user.id);
-          const role = guild.roles.cache.get(roleConfig.roleId);
-          
-          if (role && member) {
-            await member.roles.add(role);
-          }
-        }
-        break;
-      }
-    }
-  } catch (error) {
-    console.error('Error handling reaction add:', error);
-  }
-});
-
-client.on('messageReactionRemove', async (reaction, user) => {
-  if (user.bot) return;
-  
-  try {
-    if (reaction.partial) await reaction.fetch();
-    
-    const reactionRoles = dataStore.getReactionRoles();
-    
-    for (const [name, config] of Object.entries(reactionRoles)) {
-      if (config.messageId === reaction.message.id) {
-        const emoji = reaction.emoji.id ? `<:${reaction.emoji.name}:${reaction.emoji.id}>` : reaction.emoji.name;
-        const roleConfig = config.roles.find(r => r.emoji === emoji || r.emoji === reaction.emoji.name);
-        
-        if (roleConfig) {
-          const guild = reaction.message.guild;
-          const member = await guild.members.fetch(user.id);
-          const role = guild.roles.cache.get(roleConfig.roleId);
-          
-          if (role && member) {
-            await member.roles.remove(role);
-          }
-        }
-        break;
-      }
-    }
-  } catch (error) {
-    console.error('Error handling reaction remove:', error);
-  }
-});
-
-// ==================== HELPER FUNCTIONS ====================
-
-function createErrorEmbed(description) {
-  return new EmbedBuilder()
-    .setColor(COLORS.error)
-    .setDescription(`❌ **Error**\n${description}`)
-    .setTimestamp();
-}
-
-function createSuccessEmbed(title, description) {
-  return new EmbedBuilder()
-    .setColor(COLORS.success)
-    .setTitle(`✅ ${title}`)
-    .setDescription(description)
-    .setTimestamp();
-}
-
-function isAdmin(member) {
-  return member.permissions.has(PermissionFlagsBits.Administrator) || 
-         member.permissions.has(PermissionFlagsBits.ManageGuild) ||
-         member.id === member.guild.ownerId;
-}
-
-function isMod(member) {
-  return isAdmin(member) || 
-         member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-         member.permissions.has(PermissionFlagsBits.KickMembers) ||
-         member.permissions.has(PermissionFlagsBits.BanMembers);
-}
-
-// Game guess handler
-async function handleGameGuess(message, gameId) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
-  
-  const guess = message.content.trim().toLowerCase();
-  
-  if (guess === 'quit' || guess === 'exit' || guess === 'end') {
-    activeGames.delete(gameId);
-    await message.reply({ embeds: [createSuccessEmbed('Game Ended', 'Game has been cancelled.')] });
-    return;
-  }
-  
-  if (gameData.type === 'flag') {
-    await handleFlagGuess(message, gameId, guess);
-  } else if (gameData.type === 'animal') {
-    await handleAnimalGuess(message, gameId, guess);
-  } else if (gameData.type === 'hangman') {
-    await handleHangmanGuess(message, gameId, guess);
-  } else if (gameData.type === 'trivia') {
-    await handleTriviaGuess(message, gameId, guess);
-  } else if (gameData.type === 'rps') {
-    await handleRPSGuess(message, gameId, guess);
-  } else if (gameData.type === 'number') {
-    await handleNumberGuess(message, gameId, parseInt(guess));
-  } else if (gameData.type === 'wordchain') {
-    await handleWordChainGuess(message, gameId, guess);
-  }
-}
-
-// ==================== ORIGINAL COMMANDS (ALL PRESERVED) ====================
-
-async function helpCommand(message) {
-  const isOwner = message.member.id === message.guild.ownerId;
-  const isAdminUser = isAdmin(message.member);
-  
-  const embed = new EmbedBuilder()
-    .setColor(0x2C3E50)
-    .setAuthor({ name: 'WORLD OF GAMERS BOT', iconURL: client.user.displayAvatarURL() })
-    .setTitle('COMMAND DIRECTORY')
-    .setDescription('```\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nPrefix: =  |  Slash: /\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n```')
-    .addFields(
-      {name: '🔐 CRYPTOCURRENCY', value: '`=bal` • Check Crypto Balance\n`=txid` • Transaction Details\n`=convert` • Currency Conversion', inline: true},
-      {name: '⚡ UTILITIES', value: '`=calc` • Math Calculator\n`=remind` • Set Reminders\n`=translate` • Text Translation\n`=weather` • Weather Check\n`=poll` • Create Polls', inline: true},
-      {name: '👤 USER & SERVER', value: '`=ui` • User Information\n`=avatar` • Avatar Display\n`=banner` • User Banner\n`=serverinfo` • Server Details\n`=botinfo` • Bot Information', inline: true},
-      {name: '📈 INFO & STATS', value: '`=ping` • Response Speed\n`=rep` • Give Reputation\n`=getrep` • Check Reputation\n`=msgcount` • Message Statistics', inline: true},
-      {name: '🎨 ENTERTAINMENT', value: '`=8ball` • Magic 8 Ball\n`=dice` • Dice Roller\n`=coin` • Coin Flip\n`=joke` • Random Joke\n`=quote` • Random Quote', inline: true}
-    );
-
-  if (isOwner || isAdminUser) {
-    embed.addFields(
-      {name: '\u200b', value: '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n**ADMIN & MODERATION**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', inline: false},
-      {name: '🔔 VOUCH GENERATION', value: '`=vouch` • Purchase Vouch\n`=evouch` • Exchange Vouch', inline: true},
-      {name: '⚔️ MODERATION TOOLS', value: '`=warn` • Warn User\n`=warnings` • View Warnings\n`=clearwarn` • Clear Warnings\n`=kick` • Remove User\n`=ban` • Ban User\n`=unban` • Unban User\n`=mute` • Mute User\n`=unmute` • Unmute User\n`=timeout` • Timeout User\n`=clear` • Delete Messages', inline: false},
-      {name: '🏆 ROLE MANAGEMENT', value: '`=addrole` • Add Role\n`=removerole` • Remove Role\n`=changenick` • Change Nickname\n`=rr` • Reaction Role Setup\n`=r` • Deploy Roles\n`=addar` • Add to Roles\n`=delar` • Remove from Roles\n`=listar` • List All Roles', inline: true},
-      {name: '✨ VERIFICATION', value: '`=verify` • Verify Member\n`=unverify` • Unverify Member\n`=verifypanel` • Verification Panel', inline: true}
-    );
-  }
-
-  // Add new games section
-  embed.addFields(
-    {name: '\u200b', value: '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n**🎮 MINI GAMES (XP SYSTEM)**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', inline: false},
-    {name: '🎯 GUESSING GAMES', value: '`=flag` • Country Flag Guessing\n`=animal` • Animal Name Guessing\n`=hangman` • Hangman Game\n`=trivia` • Quiz Game\n`=rps` • Rock Paper Scissors\n`=number` • Number Guessing\n`=wordchain` • Word Chain Game', inline: false},
-    {name: '📊 XP SYSTEM', value: '`=rank` • Check Your Level\n`=leaderboard` • Server Rankings\n`=daily` • Daily Rewards\n`=xp` • XP Information', inline: true}
-  );
-
-  // Add new moderation section if admin
-  if (isOwner || isAdminUser) {
-    embed.addFields(
-      {name: '\u200b', value: '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n**🛡️ ADVANCED MODERATION**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', inline: false},
-      {name: '🔧 CHANNEL CONTROLS', value: '`=lock` • Lock Channel\n`=unlock` • Unlock Channel\n`=slowmode` • Set Slowmode\n`=nuke` • Clone & Clear Channel', inline: true},
-      {name: '🎫 TICKET SYSTEM', value: '`=ticket` • Create Ticket\n`=close` • Close Ticket', inline: true},
-      {name: '🛡️ AUTO MODERATION', value: '`=automod` • Setup Auto Mod\n`=blacklist` • Word Blacklist\n`=snipe` • View Deleted Messages\n`=editlogs` • View Edited Messages\n`=userlogs` • User Moderation Logs', inline: false}
-    );
-  }
-
-  const cmdCount = isOwner || isAdminUser ? '60+' : '35+';
-  embed.setFooter({text: `Requested by ${message.author.tag} • Total Commands: ${cmdCount}`, iconURL: message.author.displayAvatarURL()}).setTimestamp();
-  await message.reply({ embeds: [embed] });
-}
-
-async function pingCommand(message) {
-  const sent = await message.reply({ 
-    embeds: [new EmbedBuilder().setColor(COLORS.info).setDescription('📡 Measuring latency...')] 
-  });
-  
-  const latency = sent.createdTimestamp - message.createdTimestamp;
-  const apiLatency = Math.round(client.ws.ping);
-  
-  const getLatencyStatus = (ms) => {
-    if (ms < 100) return { emoji: '🟢', status: 'Excellent' };
-    if (ms < 200) return { emoji: '🟡', status: 'Good' };
-    return { emoji: '🔴', status: 'High' };
-  };
-
-  const botStatus = getLatencyStatus(latency);
-  const apiStatus = getLatencyStatus(apiLatency);
-
-  const embed = new EmbedBuilder()
-    .setColor(botStatus.emoji === '🟢' ? 0x57F287 : botStatus.emoji === '🟡' ? 0xFEE75C : 0xED4245)
-    .setAuthor({ name: 'LATENCY CHECK', iconURL: client.user.displayAvatarURL() })
-    .addFields(
-      { 
-        name: 'Message Latency', 
-        value: `${botStatus.emoji} ${latency}ms \`${botStatus.status}\``, 
-        inline: true 
-      },
-      { 
-        name: 'API Latency', 
-        value: `${apiStatus.emoji} ${apiLatency}ms \`${apiStatus.status}\``, 
-        inline: true 
-      }
-    )
-    .setFooter({ 
-      text: `Requested by ${message.author.tag}`, 
-      iconURL: message.author.displayAvatarURL() 
-    })
-    .setTimestamp();
-
-  await sent.edit({ embeds: [embed] });
-}
-
-async function serverInfoCommand(message) {
-  const { guild } = message;
-  if (!guild) {
-    return message.reply({ embeds: [createErrorEmbed('This command can only be used in a server.')] });
-  }
-
-  const verificationLevels = ['🟢 None', '🟡 Low', '🟠 Medium', '🔴 High', '⚫ Very High'];
-  const boostTiers = ['No Level', '⭐ Level 1', '⭐⭐ Level 2', '⭐⭐⭐ Level 3'];
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: '🏰 Server Information', iconURL: guild.iconURL({ dynamic: true }) })
-    .setTitle(`${guild.name}`)
-    .setThumbnail(guild.iconURL({ dynamic: true, size: 512 }))
-    .addFields(
-      { 
-        name: '📍 General', 
-        value: [
-          `**ID:** \`${guild.id}\``,
-          `**👑 Owner:** <@${guild.ownerId}>`,
-          `**📅 Created:** <t:${Math.floor(guild.createdTimestamp / 1000)}:R>`
-        ].join('\n'), 
-        inline: true 
-      },
-      { 
-        name: '📊 Statistics', 
-        value: [
-          `**👥 Members:** \`${guild.memberCount.toLocaleString()}\``,
-          `**💬 Channels:** \`${guild.channels.cache.size}\``,
-          `**🏷️ Roles:** \`${guild.roles.cache.size}\``
-        ].join('\n'), 
-        inline: true 
-      },
-      { 
-        name: '💜 Boost Status', 
-        value: [
-          `**Tier:** \`${boostTiers[guild.premiumTier]}\``,
-          `**Boosts:** \`${guild.premiumSubscriptionCount || 0}\``,
-          `**Verification:** \`${verificationLevels[guild.verificationLevel]}\``
-        ].join('\n'), 
-        inline: true 
-      }
-    )
-    .setImage(guild.bannerURL({ dynamic: true, size: 1024 }))
-    .setFooter({ 
-      text: `Requested by ${message.author.tag}`, 
-      iconURL: message.author.displayAvatarURL() 
-    })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function userInfoCommand(message, args) {
-  let user;
-  if (args[0]) {
-    const userId = args[0].replace(/[<@!>]/g, '');
-    try {
-      user = await client.users.fetch(userId, { force: true });
-    } catch {
-      return message.reply({ embeds: [createErrorEmbed('Could not find that user.')] });
-    }
-  } else {
-    user = await message.author.fetch(true);
-  }
-
-  const member = message.guild?.members.cache.get(user.id);
-  const createdDate = new Date(user.createdTimestamp);
-  const joinedDate = member?.joinedTimestamp ? new Date(member.joinedTimestamp) : null;
-  
-  const formatDate = (date) => {
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    return date.toLocaleDateString('en-US', options).replace(', ', ' ');
-  };
-
-  const getRelativeTime = (timestamp) => {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    const intervals = { year: 31536000, month: 2592000, day: 86400, hour: 3600, minute: 60 };
-    for (const [name, secondsInInterval] of Object.entries(intervals)) {
-      const interval = Math.floor(seconds / secondsInInterval);
-      if (interval >= 1) return `${interval} ${name}${interval > 1 ? 's' : ''} ago`;
-    }
-    return 'moments ago';
-  };
-
-  // Get XP data if available
-  const xpData = dataStore.getUserXP(message.guild.id, user.id) || { xp: 0, level: 1 };
-  const levelData = getLevelFromXP(xpData.xp);
-
-  const embed = new EmbedBuilder()
-    .setColor(user.accentColor || COLORS.primary)
-    .setAuthor({ name: `${user.tag}'s User Information`, iconURL: user.displayAvatarURL({ dynamic: true }) })
-    .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 512 }))
-    .addFields(
-      {
-        name: 'General:',
-        value: `• **ID:** ${user.id}\n• **Username:** @${user.username}\n• **Display Name:** ${member?.displayName || user.username}\n• **Mention:** ${user}`,
-        inline: false
-      },
-      {
-        name: 'Created At:',
-        value: `• **Date:** ${formatDate(createdDate)}\n• **Relative:** ${getRelativeTime(user.createdTimestamp)}`,
-        inline: false
-      },
-      {
-        name: '📊 XP Stats:',
-        value: `• **Level:** ${levelData.level}\n• **XP:** ${xpData.xp}/${levelData.nextLevelXP}\n• **Progress:** ${Math.floor((xpData.xp % XP_CONFIG.LEVEL_MULTIPLIER) / XP_CONFIG.LEVEL_MULTIPLIER * 100)}%`,
-        inline: false
-      }
-    );
-
-  if (member && joinedDate) {
-    embed.addFields({
-      name: 'Joined At:',
-      value: `• **Date:** ${formatDate(joinedDate)}\n• **Relative:** ${getRelativeTime(member.joinedTimestamp)}`,
-      inline: false
-    });
-  }
-
-  if (member) {
-    const roles = member.roles.cache
-      .filter(r => r.id !== message.guild.id)
-      .sort((a, b) => b.position - a.position)
-      .map(r => r.toString());
-    
-    embed.addFields({
-      name: `Roles [${roles.length}]:`,
-      value: roles.length ? roles.join(' • ') : '• No roles',
-      inline: false
-    });
-  }
-
-  if (user.bannerURL()) {
-    embed.setImage(user.bannerURL({ dynamic: true, size: 1024 }));
-  }
-
-  const now = new Date();
-  const timeOptions = { hour: '2-digit', minute: '2-digit' };
-  const timeStr = now.toLocaleTimeString('en-US', timeOptions);
-  const dayStr = now.toLocaleDateString('en-US', { weekday: 'long' });
-
-  embed.setFooter({ 
-    text: `Requested by ${message.author.tag} • ${dayStr} at ${timeStr}`, 
-    iconURL: message.author.displayAvatarURL() 
-  });
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function avatarCommand(message, args) {
-  let user;
-  if (args[0]) {
-    const userId = args[0].replace(/[<@!>]/g, '');
-    try {
-      user = await client.users.fetch(userId);
-    } catch {
-      return message.reply({ embeds: [createErrorEmbed('Could not find that user.')] });
-    }
-  } else {
-    user = message.author;
-  }
-
-  const avatarURL = user.displayAvatarURL({ dynamic: true, size: 4096 });
-  const formats = ['png', 'jpg', 'webp'];
-  if (user.avatar?.startsWith('a_')) formats.push('gif');
-
-  const links = formats.map(f => 
-    `[\`${f.toUpperCase()}\`](${user.displayAvatarURL({ extension: f, size: 4096 })})`
-  ).join(' ');
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: `📸 ${user.tag}'s Avatar`, iconURL: user.displayAvatarURL() })
-    .setImage(avatarURL)
-    .setDescription(`**📥 Download:** ${links}`)
-    .setFooter({ 
-      text: `Requested by ${message.author.tag}`, 
-      iconURL: message.author.displayAvatarURL() 
-    })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function bannerCommand(message, args) {
-  let user;
-  if (args[0]) {
-    const userId = args[0].replace(/[<@!>]/g, '');
-    try {
-      user = await client.users.fetch(userId, { force: true });
-    } catch {
-      return message.reply({ embeds: [createErrorEmbed('Could not find that user.')] });
-    }
-  } else {
-    user = await message.author.fetch(true);
-  }
-
-  const bannerURL = user.bannerURL({ dynamic: true, size: 4096 });
-
-  if (!bannerURL) {
-    return message.reply({ embeds: [createErrorEmbed('This user does not have a banner.')] });
-  }
-
-  const formats = ['png', 'jpg', 'webp'];
-  if (user.banner?.startsWith('a_')) formats.push('gif');
-
-  const links = formats.map(f => 
-    `[\`${f.toUpperCase()}\`](${user.bannerURL({ extension: f, size: 4096 })})`
-  ).join(' ');
-
-  const embed = new EmbedBuilder()
-    .setColor(user.accentColor || COLORS.primary)
-    .setAuthor({ name: `🎨 ${user.tag}'s Banner`, iconURL: user.displayAvatarURL() })
-    .setImage(bannerURL)
-    .setDescription(`**📥 Download:** ${links}`)
-    .setFooter({ 
-      text: `Requested by ${message.author.tag}`, 
-      iconURL: message.author.displayAvatarURL() 
-    })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function calcCommand(message, args) {
-  if (!args.length) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '🧮 Calculator', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=calc <expression>`')
-      .addFields({
-        name: '📋 Examples',
-        value: '```\n=calc 5 * 10\n=calc (100 + 50) / 2\n=calc sqrt(144)\n=calc 2^8```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const expression = args.join(' ');
-  
-  try {
-    const result = evaluate(expression);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '🧮 Calculator', iconURL: client.user.displayAvatarURL() })
-      .addFields(
-        { name: '📝 Expression', value: `\`\`\`${expression}\`\`\``, inline: false },
-        { name: '✨ Result', value: `\`\`\`${result}\`\`\``, inline: false }
-      )
-      .setFooter({ 
-        text: `Requested by ${message.author.tag}`, 
-        iconURL: message.author.displayAvatarURL() 
-      })
-      .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Invalid expression. Please check your input.')] });
-  }
-}
-
-async function remindCommand(message, args) {
-  if (args.length < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '⏰ Reminder', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=remind <duration> <reason>`')
-      .addFields({
-        name: '⏱️ Duration Format',
-        value: '`s` = seconds, `m` = minutes, `h` = hours, `d` = days'
-      }, {
-        name: '📋 Examples',
-        value: '```\n=remind 10m Drink Water\n=remind 1h Check email\n=remind 30s Quick break```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const durationStr = args[0].toLowerCase();
-  const reason = args.slice(1).join(' ');
-
-  const timeUnits = { 's': 1000, 'm': 60000, 'h': 3600000, 'd': 86400000 };
-  const unitNames = { 's': 'second(s)', 'm': 'minute(s)', 'h': 'hour(s)', 'd': 'day(s)' };
-
-  const unit = durationStr.slice(-1);
-  const value = parseInt(durationStr.slice(0, -1));
-
-  if (!timeUnits[unit] || isNaN(value) || value <= 0) {
-    return message.reply({ embeds: [createErrorEmbed('Invalid duration format. Use: `10s`, `5m`, `2h`, `1d`')] });
-  }
-
-  const duration = value * timeUnits[unit];
-  const maxDuration = 7 * 24 * 60 * 60 * 1000;
-
-  if (duration > maxDuration) {
-    return message.reply({ embeds: [createErrorEmbed('Maximum reminder duration is 7 days.')] });
-  }
-
-  const reminderTime = Math.floor((Date.now() + duration) / 1000);
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.success)
-    .setAuthor({ name: '⏰ Reminder Set', iconURL: client.user.displayAvatarURL() })
-    .setDescription(`I'll remind you <t:${reminderTime}:R>`)
-    .addFields(
-      { name: '⏱️ Duration', value: `\`${value} ${unitNames[unit]}\``, inline: true },
-      { name: '📝 Reason', value: reason, inline: true }
-    )
-    .setFooter({ 
-      text: `Requested by ${message.author.tag}`, 
-      iconURL: message.author.displayAvatarURL() 
-    })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-
-  setTimeout(async () => {
-    const reminderEmbed = new EmbedBuilder()
-      .setColor(COLORS.warning)
-      .setAuthor({ name: '⏰ Reminder!', iconURL: client.user.displayAvatarURL() })
-      .setDescription(`**${reason}**`)
-      .addFields({ name: '📍 Set', value: `<t:${Math.floor(Date.now() / 1000) - Math.floor(duration / 1000)}:R>` })
-      .setFooter({ text: "⏲️ Time's up!" })
-      .setTimestamp();
-
-    try {
-      await message.channel.send({ content: `<@${message.author.id}>`, embeds: [reminderEmbed] });
-    } catch (e) {
-      console.error('Failed to send reminder:', e);
-    }
-  }, duration);
-}
-
-async function convertCommand(message, args) {
-  if (args.length < 4 || args[2].toLowerCase() !== 'to') {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '💱 Currency Converter', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=convert <amount> <from> to <to>`')
-      .addFields({
-        name: '📋 Examples',
-        value: '```\n=convert 100 usd to pkr\n=convert 50 eur to gbp\n=convert 1000 inr to usd```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const amount = parseFloat(args[0]);
-  const fromCurrency = args[1].toUpperCase();
-  const toCurrency = args[3].toUpperCase();
-
-  if (isNaN(amount)) {
-    return message.reply({ embeds: [createErrorEmbed('Please provide a valid amount.')] });
-  }
-
-  try {
-    const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/${fromCurrency}`);
-    const rate = response.data.rates[toCurrency];
-
-    if (!rate) {
-      return message.reply({ embeds: [createErrorEmbed('Invalid currency code.')] });
-    }
-
-    const result = (amount * rate).toFixed(2);
-
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '💱 Currency Converter', iconURL: client.user.displayAvatarURL() })
-      .addFields(
-        { name: '💵 From', value: `\`\`\`${amount.toLocaleString()} ${fromCurrency}\`\`\``, inline: true },
-        { name: '💰 To', value: `\`\`\`${parseFloat(result).toLocaleString()} ${toCurrency}\`\`\``, inline: true },
-        { name: '📊 Exchange Rate', value: `\`1 ${fromCurrency} = ${rate.toFixed(4)} ${toCurrency}\``, inline: false }
-      )
-      .setFooter({ 
-        text: `Requested by ${message.author.tag}`, 
-        iconURL: message.author.displayAvatarURL() 
-      })
-      .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to convert currency. Please check the currency codes.')] });
-  }
-}
-
-async function translateCommand(message, args) {
-  const toIndex = args.findIndex(arg => arg.toLowerCase() === 'to');
-  
-  if (toIndex === -1 || toIndex === 0 || toIndex === args.length - 1) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '🌐 Translator', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=translate <message> to <language>`')
-      .addFields({
-        name: '📋 Examples',
-        value: '```\n=translate hello to spanish\n=translate good morning to french\n=translate thank you to japanese```'
-      }, {
-        name: '🌍 Supported Languages',
-        value: 'English, Spanish, French, German, Italian, Portuguese, Russian, Japanese, Korean, Chinese, Arabic, Hindi, Urdu, Turkish, and more...'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const text = args.slice(0, toIndex).join(' ');
-  const targetLang = args.slice(toIndex + 1).join(' ').toLowerCase();
-
-  const langCodes = {
-    'english': 'en', 'spanish': 'es', 'french': 'fr', 'german': 'de',
-    'italian': 'it', 'portuguese': 'pt', 'russian': 'ru', 'japanese': 'ja',
-    'korean': 'ko', 'chinese': 'zh', 'arabic': 'ar', 'hindi': 'hi',
-    'urdu': 'ur', 'turkish': 'tr', 'dutch': 'nl', 'polish': 'pl',
-    'vietnamese': 'vi', 'thai': 'th', 'indonesian': 'id', 'malay': 'ms'
-  };
-
-  const targetCode = langCodes[targetLang] || targetLang;
-
-  try {
-    const response = await axios.get('https://api.mymemory.translated.net/get', {
-      params: { q: text, langpair: `en|${targetCode}` }
-    });
-
-    const translatedText = response.data.responseData.translatedText;
-
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '🌐 Translation', iconURL: client.user.displayAvatarURL() })
-      .addFields(
-        { name: '🇬🇧 Original (English)', value: `\`\`\`${text}\`\`\``, inline: false },
-        { name: `🌍 Translated (${targetLang.charAt(0).toUpperCase() + targetLang.slice(1)})`, value: `\`\`\`${translatedText}\`\`\``, inline: false }
-      )
-      .setFooter({ 
-        text: `Requested by ${message.author.tag}`, 
-        iconURL: message.author.displayAvatarURL() 
-      })
-      .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to translate. Please try again.')] });
-  }
-}
-
-async function balCommand(message, args) {
-  if (args.length < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '💰 Crypto Balance', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=bal <crypto> <address>`')
-      .addFields({
-        name: '💎 Supported Coins',
-        value: '`₿ BTC` `Ł LTC` `Ξ ETH` `◎ SOL`'
-      }, {
-        name: '📋 Example',
-        value: '```=bal btc 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const crypto = args[0].toLowerCase();
-  const address = args[1];
-
-  const cryptoInfo = {
-    btc: { name: 'Bitcoin', symbol: 'BTC', color: COLORS.crypto.btc, icon: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png', emoji: '₿' },
-    ltc: { name: 'Litecoin', symbol: 'LTC', color: COLORS.crypto.ltc, icon: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png', emoji: 'Ł' },
-    eth: { name: 'Ethereum', symbol: 'ETH', color: COLORS.crypto.eth, icon: 'https://cryptologos.cc/logos/ethereum-eth-logo.png', emoji: 'Ξ' },
-    sol: { name: 'Solana', symbol: 'SOL', color: COLORS.crypto.sol, icon: 'https://cryptologos.cc/logos/solana-sol-logo.png', emoji: '◎' }
-  };
-
-  if (!cryptoInfo[crypto]) {
-    return message.reply({ embeds: [createErrorEmbed('Supported cryptocurrencies: `BTC`, `LTC`, `ETH`, `SOL`')] });
-  }
-
-  const info = cryptoInfo[crypto];
-
-  try {
-    let balance;
-
-    if (crypto === 'btc') {
-      const response = await axios.get(`https://blockchain.info/balance?active=${address}`);
-      const data = response.data[address];
-      balance = data ? (data.final_balance / 100000000).toFixed(8) : '0';
-    } else if (crypto === 'ltc') {
-      const response = await axios.get(`https://api.blockcypher.com/v1/ltc/main/addrs/${address}/balance`);
-      balance = (response.data.balance / 100000000).toFixed(8);
-    } else if (crypto === 'eth') {
-      const response = await axios.get(`https://api.blockcypher.com/v1/eth/main/addrs/${address}/balance`);
-      balance = (response.data.balance / 1000000000000000000).toFixed(8);
-    } else if (crypto === 'sol') {
-      const response = await axios.post('https://api.mainnet-beta.solana.com', {
-        jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address]
-      });
-      balance = response.data.result?.value ? (response.data.result.value / 1000000000).toFixed(8) : '0';
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor(info.color)
-      .setAuthor({ name: `${info.emoji} ${info.name} Wallet`, iconURL: info.icon })
-      .addFields(
-        { name: '📍 Address', value: `\`\`\`${address}\`\`\``, inline: false },
-        { name: '💰 Balance', value: `\`\`\`${balance} ${info.symbol}\`\`\``, inline: false }
-      )
-      .setFooter({ 
-        text: `Requested by ${message.author.tag}`, 
-        iconURL: message.author.displayAvatarURL() 
-      })
-      .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to fetch balance. Please check the address and try again.')] });
-  }
-}
-async function txidCommand(message, args) {
-  if (args.length < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '📝 Transaction Lookup', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=txid <crypto> <txid>`')
-      .addFields({
-        name: '💎 Supported Coins',
-        value: '`₿ BTC` `Ł LTC` `Ξ ETH`'
-      }, {
-        name: '📋 Example',
-        value: '```=txid btc abc123def456...```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const crypto = args[0].toLowerCase();
-  const txid = args[1];
-
-  const cryptoInfo = {
-    btc: { name: 'Bitcoin', symbol: 'BTC', color: COLORS.crypto.btc, emoji: '₿' },
-    ltc: { name: 'Litecoin', symbol: 'LTC', color: COLORS.crypto.ltc, emoji: 'Ł' },
-    eth: { name: 'Ethereum', symbol: 'ETH', color: COLORS.crypto.eth, emoji: 'Ξ' }
-  };
-
-  if (!cryptoInfo[crypto]) {
-    return message.reply({ embeds: [createErrorEmbed('Supported cryptocurrencies: `BTC`, `LTC`, `ETH`')] });
-  }
-
-  const info = cryptoInfo[crypto];
-
-  try {
-    let data;
-    if (crypto === 'btc') {
-      const response = await axios.get(`https://blockchain.info/rawtx/${txid}`);
-      data = response.data;
-    } else {
-      const response = await axios.get(`https://api.blockcypher.com/v1/${crypto}/main/txs/${txid}`);
-      data = response.data;
-    }
-
-    const embed = new EmbedBuilder()
-      .setColor(info.color)
-      .setAuthor({ name: `${info.emoji} ${info.name} Transaction` })
-      .addFields(
-        { name: '🔗 Transaction Hash', value: `\`\`\`${txid}\`\`\``, inline: false },
-        { 
-          name: '📦 Block Height', 
-          value: `\`${data.block_height || 'Pending'}\``, 
-          inline: true 
-        },
-        { 
-          name: '✅ Status', 
-          value: data.block_height ? '`Confirmed`' : '`Pending`', 
-          inline: true 
-        },
-        { 
-          name: '🔢 Confirmations', 
-          value: `\`${data.confirmations || (data.block_height ? '1+' : '0')}\``, 
-          inline: true 
-        }
-      );
-
-    if (crypto === 'btc' && data.time) {
-      embed.addFields({ name: '🕐 Time', value: `<t:${data.time}:F>`, inline: false });
-    } else if (data.confirmed) {
-      embed.addFields({ 
-        name: '🕐 Confirmed At', 
-        value: `<t:${Math.floor(new Date(data.confirmed).getTime() / 1000)}:F>`, 
-        inline: false 
-      });
-    }
-
-    embed.setFooter({ 
-      text: `Requested by ${message.author.tag}`, 
-      iconURL: message.author.displayAvatarURL() 
-    }).setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to fetch transaction details. Please check the TXID and try again.')] });
-  }
-}
-
-async function vouchCommand(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  
-  if (args.length < 4) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: 'PURCHASE VOUCH GENERATOR', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=vouch <@user> <Item> <price> <currency> <wallet>`')
-      .addFields({
-        name: 'Example',
-        value: '```=vouch @user ink decoration 1.3$ usd cwallet```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const priceIndex = args.findIndex((arg, idx) => idx > 0 && /^\d+\.?\d*\$?$|^\$\d+\.?\d*$/.test(arg));
-  
-  if (priceIndex === -1) {
-    return message.reply({ embeds: [createErrorEmbed('Please include a price. Example: `=vouch @user ink decoration 1.3$ usd cwallet`')] });
-  }
-
-  const item = args.slice(1, priceIndex).join(' ');
-  const price = args[priceIndex];
-  const currency = args[priceIndex + 1] || 'USD';
-  const wallet = args.slice(priceIndex + 2).join(' ') || 'Unknown';
-  const sellerID = message.author.id;
-
-  const repCommand = `+rep <@${sellerID}> Purchased ${item} for ${price} ${currency.toUpperCase()} [${wallet}] • Always Legit`;
-
-  const repEmbed = new EmbedBuilder()
-    .setColor(0x5865F2)
-    .setTitle('📋 COPY & SHARE WITH BUYER')
-    .setDescription(`\`\`\`\n${repCommand}\n\`\`\``);
-
-  await message.reply({ embeds: [repEmbed] });
-}
-
-async function evouchCommand(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  
-  const toIndex = args.findIndex(arg => arg.toLowerCase() === 'to');
-  
-  if (toIndex === -1 || toIndex < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: 'EXCHANGE VOUCH GENERATOR', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=evouch <Amount> <Currency> to <Amount> <Currency> <Wallet>`')
-      .addFields({
-        name: 'Example',
-        value: '```=evouch 3000 PKR to 10.3$ USDC Cwallet```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const fromAmount = args[0];
-  const fromCurrency = args[1];
-  const toAmount = args[toIndex + 1] || '0';
-  const toCurrency = args[toIndex + 2] || '';
-  const toWallet = args.slice(toIndex + 3).join(' ') || 'Unknown';
-
-  const repCommand = `+rep <@${message.author.id}> Exchanged ${fromAmount} ${fromCurrency.toUpperCase()} to ${toAmount} ${toCurrency.toUpperCase()} [${toWallet}] • Always Legit`;
-
-  const repEmbed = new EmbedBuilder()
-    .setColor(0x5865F2)
-    .setTitle('📋 COPY & SHARE WITH BUYER')
-    .setDescription(`\`\`\`\n${repCommand}\n\`\`\``);
-
-  await message.reply({ embeds: [repEmbed] });
-}
-
-async function setupReactionRole(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  if (args.length < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '⚙️ Reaction Role Setup', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=rr <name> <roleId>`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=rr colors 123456789012345678```'
-      }, {
-        name: '📍 Next Steps',
-        value: 'After setup, use `=addar <name> <roleId> <emoji>` to add roles'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const name = args[0].toLowerCase();
-  const roleId = args[1];
-
-  const role = message.guild.roles.cache.get(roleId);
-  if (!role) {
-    return message.reply({ embeds: [createErrorEmbed('Could not find that role. Please provide a valid role ID.')] });
-  }
-
-  dataStore.setReactionRole(name, {
-    guildId: message.guild.id,
-    channelId: null,
-    messageId: null,
-    roles: [{ roleId: roleId, emoji: null }]
-  });
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.success)
-    .setAuthor({ name: '✅ Reaction Role Created', iconURL: client.user.displayAvatarURL() })
-    .addFields(
-      { name: '📝 Name', value: `\`${name}\``, inline: true },
-      { name: '👤 Initial Role', value: `<@&${roleId}>`, inline: true }
-    )
-    .setDescription('Use `=addar` to add more roles with emojis, then `=r` to deploy it.')
-    .setFooter({ text: `Created by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function addToReactionRole(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  if (args.length < 3) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '➕ Add to Reaction Role', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=addar <name> <roleId> <emoji>`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=addar colors 123456789012345678 🔴```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const name = args[0].toLowerCase();
-  const roleId = args[1];
-  const emoji = args[2];
-
-  const reactionRoles = dataStore.getReactionRoles();
-  const config = reactionRoles[name];
-
-  if (!config) {
-    return message.reply({ embeds: [createErrorEmbed(`Reaction role "${name}" not found. Create it first with \`=rr\`.`)] });
-  }
-
-  const role = message.guild.roles.cache.get(roleId);
-  if (!role) {
-    return message.reply({ embeds: [createErrorEmbed('Could not find that role.')] });
-  }
-
-  if (!config.roles) config.roles = [];
-  
-  const existingIndex = config.roles.findIndex(r => r.roleId === roleId);
-  if (existingIndex !== -1) {
-    config.roles[existingIndex].emoji = emoji;
-  } else {
-    config.roles.push({ roleId, emoji });
-  }
-
-  dataStore.setReactionRole(name, config);
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.success)
-    .setAuthor({ name: '✅ Role Added', iconURL: client.user.displayAvatarURL() })
-    .addFields(
-      { name: '🏷️ Reaction Role', value: `\`${name}\``, inline: true },
-      { name: '👤 Role', value: `<@&${roleId}>`, inline: true },
-      { name: '😀 Emoji', value: emoji, inline: true }
-    )
-    .setFooter({ text: `Modified by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function removeFromReactionRole(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  if (args.length < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '➖ Remove from Reaction Role', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=delar <name> <roleId>`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=delar colors 123456789012345678```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const name = args[0].toLowerCase();
-  const roleId = args[1];
-
-  const reactionRoles = dataStore.getReactionRoles();
-  const config = reactionRoles[name];
-
-  if (!config) {
-    return message.reply({ embeds: [createErrorEmbed(`Reaction role "${name}" not found.`)] });
-  }
-
-  config.roles = config.roles.filter(r => r.roleId !== roleId);
-  
-  if (config.roles.length === 0) {
-    dataStore.deleteReactionRole(name);
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.warning)
-      .setDescription(`⚠️ Reaction role \`${name}\` deleted (no roles remaining).`)
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  dataStore.setReactionRole(name, config);
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.success)
-    .setAuthor({ name: '✅ Role Removed', iconURL: client.user.displayAvatarURL() })
-    .setDescription(`Removed <@&${roleId}> from \`${name}\``)
-    .setFooter({ text: `Modified by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function useReactionRole(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  if (args.length < 1) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '🚀 Deploy Reaction Role', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=r <name>`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=r colors```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const name = args[0].toLowerCase();
-  const reactionRoles = dataStore.getReactionRoles();
-  const config = reactionRoles[name];
-
-  if (!config) {
-    return message.reply({ embeds: [createErrorEmbed(`Reaction role "${name}" not found.`)] });
-  }
-
-  const validRoles = config.roles.filter(r => r.emoji);
-  if (validRoles.length === 0) {
-    return message.reply({ embeds: [createErrorEmbed('No roles with emojis configured. Use `=addar` to add roles.')] });
-  }
-
-  const rolesText = validRoles.map(r => `${r.emoji} ➜ <@&${r.roleId}>`).join('\n');
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: '🎯 Role Selection', iconURL: client.user.displayAvatarURL() })
-    .setTitle('React to get your roles!')
-    .setDescription('━━━━━━━━━━━━━━━━━━━━━━\n\n' + rolesText + '\n\n━━━━━━━━━━━━━━━━━━━━━━')
-    .setFooter({ text: '👆 React below to get/remove roles' })
-    .setTimestamp();
-
-  const sent = await message.channel.send({ embeds: [embed] });
-
-  config.channelId = message.channel.id;
-  config.messageId = sent.id;
-  dataStore.setReactionRole(name, config);
-
-  for (const roleConfig of validRoles) {
-    try {
-      await sent.react(roleConfig.emoji);
-    } catch (e) {
-      console.error(`Failed to react with ${roleConfig.emoji}:`, e);
-    }
-  }
-
-  await message.delete().catch(() => {});
-}
-
-async function listReactionRoles(message) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  const reactionRoles = dataStore.getReactionRoles();
-  const guildRoles = Object.entries(reactionRoles).filter(([_, config]) => config.guildId === message.guild.id);
-
-  if (guildRoles.length === 0) {
-    return message.reply({ embeds: [createErrorEmbed('No reaction roles configured for this server.')] });
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: '📋 Reaction Roles', iconURL: client.user.displayAvatarURL() })
-    .setDescription('━━━━━━━━━━━━━━━━━━━━━━');
-
-  for (const [name, config] of guildRoles) {
-    const rolesText = config.roles
-      .filter(r => r.emoji)
-      .map(r => `${r.emoji} <@&${r.roleId}>`)
-      .join('\n') || 'No roles configured';
-    
-    const status = config.messageId ? '🟢 `Active`' : '⚪ `Not Deployed`';
-    
-    embed.addFields({
-      name: `${name} ${status}`,
-      value: rolesText,
-      inline: true
-    });
-  }
-
-  embed.setFooter({ text: `Requested by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function verifyUser(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  if (args.length < 1) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '✅ Verify User', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=verify <@user or userId>`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=verify @Shadow\n=verify 123456789012345678```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const userId = args[0].replace(/[<@!>]/g, '');
-  
-  try {
-    const member = await message.guild.members.fetch(userId);
-    
-    if (dataStore.isVerified(message.guild.id, userId)) {
-      return message.reply({ embeds: [createErrorEmbed('This user is already verified.')] });
-    }
-
-    const verifyRoleId = dataStore.getVerifyRole(message.guild.id);
-    if (verifyRoleId) {
-      const role = message.guild.roles.cache.get(verifyRoleId);
-      if (role) {
-        await member.roles.add(role);
-      }
-    }
-
-    dataStore.addVerifiedUser(message.guild.id, userId);
-
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ User Verified', iconURL: client.user.displayAvatarURL() })
-      .setDescription(`${member} has been manually verified.`)
-      .setFooter({ text: `Verified by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
-      .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Could not find that user.')] });
-  }
-}
-
-async function unverifyUser(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  if (args.length < 1) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '❌ Unverify User', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=unverify <@user or userId>`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=unverify @Shadow\n=unverify 123456789012345678```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention or ID')] });
-  
-  try {
-    const member = await message.guild.members.fetch(userId);
-    
-    if (!dataStore.isVerified(message.guild.id, userId)) {
-      return message.reply({ embeds: [createErrorEmbed('This user is not verified.')] });
-    }
-
-    const verifyRoleId = dataStore.getVerifyRole(message.guild.id);
-    if (verifyRoleId) {
-      const role = message.guild.roles.cache.get(verifyRoleId);
-      if (role) {
-        await member.roles.remove(role);
-      }
-    }
-
-    dataStore.removeVerifiedUser(message.guild.id, userId);
-
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.warning)
-      .setAuthor({ name: '❌ User Unverified', iconURL: client.user.displayAvatarURL() })
-      .setDescription(`${member}'s verification has been removed.`)
-      .setFooter({ text: `Unverified by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
-      .setTimestamp();
-
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Could not find that user.')] });
-  }
-}
-
-async function sendVerifyPanel(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  if (args.length >= 1) {
-    const roleId = args[0].replace(/[<@&>]/g, '');
-    const role = message.guild.roles.cache.get(roleId);
-    if (role) {
-      dataStore.setVerifyRole(message.guild.id, roleId);
-    }
-  }
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: message.guild.name, iconURL: message.guild.iconURL({ dynamic: true }) })
-    .setTitle('🔐 Verification Required')
-    .setDescription('━━━━━━━━━━━━━━━━━━━━━━\n\n✅ Click the button below to verify yourself and gain access to the server.\n\n━━━━━━━━━━━━━━━━━━━━━━')
-    .setFooter({ text: '🛡️ Verification System' })
-    .setTimestamp();
-
-  const button = new ButtonBuilder()
-    .setCustomId('verify_button')
-    .setLabel('Verify')
-    .setStyle(ButtonStyle.Success)
-    .setEmoji('✅');
-
-  const row = new ActionRowBuilder().addComponents(button);
-
-  await message.channel.send({ embeds: [embed], components: [row] });
-  await message.delete().catch(() => {});
-}
-
-async function messageCount(message) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions to use this command.')] });
-  }
-
-  const count = dataStore.getMessageCount(message.guild.id);
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: '📊 Message Statistics', iconURL: client.user.displayAvatarURL() })
-    .addFields(
-      { name: '💬 Total Messages', value: `\`\`\`${count.toLocaleString()}\`\`\``, inline: false }
-    )
-    .setFooter({ text: `Requested by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-async function warnUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  const user = await message.guild.members.fetch(userId);
-  const reason = args.slice(1).join(' ') || 'No reason';
-  dataStore.addWarning(message.guild.id, user.id, reason);
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.warning).setDescription(`⚠️ ${user} warned: ${reason}`).setTimestamp()] });
-}
-
-async function checkWarnings(message, args) {
-  const userId = args[0] ? extractId(args[0]) : message.author.id;
-  const warns = dataStore.getWarnings(message.guild.id, userId);
-  const embed = new EmbedBuilder().setColor(COLORS.primary).setTitle(`⚠️ Warnings [${warns.length}]`);
-  if (warns.length === 0) {
-    embed.setDescription('✅ No warnings');
-  } else {
-    embed.setDescription(warns.map((w, i) => `${i + 1}. ${w.reason}`).join('\n'));
-  }
-  await message.reply({ embeds: [embed.setTimestamp()] });
-}
-
-async function clearWarnUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  const user = await message.guild.members.fetch(userId);
-  dataStore.clearWarnings(message.guild.id, user.id);
-  await message.reply({ embeds: [createSuccessEmbed('Warnings Cleared', `${user}'s warnings cleared`)] });
-}
-
-async function kickUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  const user = await message.guild.members.fetch(userId);
-  const reason = args.slice(1).join(' ') || 'No reason';
-  await user.kick(reason);
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.warning).setDescription(`👢 ${user} kicked: ${reason}`).setTimestamp()] });
-}
-
-async function banUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  const reason = args.slice(1).join(' ') || 'No reason';
-  await message.guild.members.ban(userId, { reason });
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.error).setDescription(`🔨 User banned: ${reason}`).setTimestamp()] });
-}
-
-async function unbanUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = args[0];
-  await message.guild.bans.remove(userId);
-  await message.reply({ embeds: [createSuccessEmbed('User Unbanned', 'User has been unbanned')] });
-}
-
-async function muteUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  const user = await message.guild.members.fetch(userId);
-  await user.timeout(parseInt(args[1]) * 60000 || 3600000);
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.warning).setDescription(`🔇 ${user} muted`).setTimestamp()] });
-}
-
-async function unmuteUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  const user = await message.guild.members.fetch(userId);
-  await user.timeout(null);
-  await message.reply({ embeds: [createSuccessEmbed('User Unmuted', `${user} is now unmuted`)] });
-}
-
-async function clearMessages(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const count = parseInt(args[0]) || 10;
-  const deleted = await message.channel.bulkDelete(count);
-  try {
-    await message.reply({ embeds: [createSuccessEmbed('Purged', `🗑️ Deleted ${deleted.size} messages`)] });
-  } catch {
-    await message.channel.send({ embeds: [createSuccessEmbed('Purged', `🗑️ Deleted ${deleted.size} messages`)] });
-  }
-}
-
-async function eightBall(message, args) {
-  const responses = ['Yes', 'No', 'Maybe', 'Ask again later', 'Definitely', 'Absolutely not', 'Without a doubt', 'Don\'t count on it'];
-  const answer = responses[Math.floor(Math.random() * responses.length)];
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setTitle('🎱 Magic 8 Ball').setDescription(`**${answer}**`).setTimestamp()] });
-}
-
-async function rollDice(message, args) {
-  const dice = args[0] || '1d6';
-  const [num, sides] = dice.split('d').map(Number);
-  if (!num || !sides) return message.reply({ embeds: [createErrorEmbed('Usage: =dice 1d6')] });
-  let total = 0;
-  for (let i = 0; i < num; i++) total += Math.floor(Math.random() * sides) + 1;
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.success).setTitle('🎲 Dice Roll').setDescription(`**${dice}**: \`${total}\``).setTimestamp()] });
-}
-
-async function flipCoin(message) {
-  const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.success).setTitle('🪙 Coin Flip').setDescription(`**${result}**`).setTimestamp()] });
-}
-
-async function getJoke(message) {
-  try {
-    const res = await axios.get('https://api.adviceslip.com/advice');
-    await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setTitle('😂 Random Advice').setDescription(`*${res.data.slip.advice}*`).setTimestamp()] });
-  } catch {
-    message.reply({ embeds: [createErrorEmbed('Failed to fetch joke')] });
-  }
-}
-
-async function getQuote(message) {
-  try {
-    const res = await axios.get('https://api.quotable.io/random');
-    await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setTitle('💭 Random Quote').setDescription(`*"${res.data.content}"*\n— ${res.data.author}`).setTimestamp()] });
-  } catch {
-    message.reply({ embeds: [createErrorEmbed('Failed to fetch quote')] });
-  }
-}
-
-async function giveReputation(message, args) {
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  const user = await message.guild.members.fetch(userId);
-  dataStore.addReputation(user.id, 1);
-  const rep = dataStore.getReputation(user.id);
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.success).setDescription(`⭐ +1 Rep for ${user} | Total: ${rep}`).setTimestamp()] });
-}
-
-async function getReputationCommand(message, args) {
-  const userId = args[0] ? extractId(args[0]) : message.author.id;
-  const rep = dataStore.getReputation(userId);
-  await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.primary).setTitle('⭐ Reputation').setDescription(`**${rep} rep points**`).setTimestamp()] });
-}
-
-async function createPoll(message, args) {
-  const question = args.join(' ');
-  if (!question) return message.reply({ embeds: [createErrorEmbed('Usage: =poll Your question here')] });
-  const poll = await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.primary).setTitle('📊 Poll').setDescription(question).setTimestamp()] });
-  await poll.react('👍');
-  await poll.react('👎');
-}
-
-async function botInfo(message) {
-  const uptime = Math.floor((Date.now() - dataStore.getUptime()) / 1000);
-  const hours = Math.floor(uptime / 3600);
-  const mins = Math.floor((uptime % 3600) / 60);
-  const secs = uptime % 60;
-  await message.reply({ embeds: [new EmbedBuilder().setColor(0x2C3E50).setAuthor({name: 'BOT INFORMATION', iconURL: client.user.displayAvatarURL()}).addFields(
-    {name: 'Bot Name', value: client.user.tag, inline: true},
-    {name: 'Status', value: 'Online', inline: true},
-    {name: 'Uptime', value: `${hours}h ${mins}m ${secs}s`, inline: true},
-    {name: 'Active Servers', value: `${client.guilds.cache.size}`, inline: true},
-    {name: '\u200b', value: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', inline: false},
-    {name: 'My Prefix =', value: 'Official Discord Bot Of **World Of Gamers**\nMade By 4w2x For You <3', inline: false}
-  ).setTimestamp()] });
-}
-
-async function getWeather(message, args) {
-  const city = args.join(' ');
-  if (!city) return message.reply({ embeds: [createErrorEmbed('Usage: =weather London')] });
-  try {
-    const geoRes = await axios.get('https://geocoding-api.open-meteo.com/v1/search', {
-      params: { name: city, count: 1, language: 'en', format: 'json' },
-      timeout: 5000
-    });
-    
-    if (!geoRes.data.results || geoRes.data.results.length === 0) {
-      return message.reply({ embeds: [createErrorEmbed('City not found')] });
-    }
-    
-    const locationData = geoRes.data.results[0];
-    const lat = locationData.latitude;
-    const lon = locationData.longitude;
-    const cityName = locationData.name;
-    const country = locationData.country || '';
-    
-    const weatherRes = await axios.get('https://api.open-meteo.com/v1/forecast', {
-      params: {
-        latitude: lat,
-        longitude: lon,
-        current: 'temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m',
-        timezone: 'auto'
-      },
-      timeout: 5000
-    });
-    
-    const current = weatherRes.data.current;
-    const temp = Math.round(current.temperature_2m);
-    const humidity = current.relative_humidity_2m;
-    const windSpeed = Math.round(current.wind_speed_10m);
-    
-    const weatherDescriptions = {
-      0: '☀️ Clear',
-      1: '🌤️ Partly Cloudy',
-      2: '⛅ Cloudy',
-      3: '☁️ Overcast',
-      45: '🌫️ Foggy',
-      48: '🌫️ Foggy',
-      51: '🌧️ Light Rain',
-      53: '🌧️ Rain',
-      55: '🌧️ Heavy Rain',
-      61: '🌧️ Rainy',
-      63: '🌧️ Heavy Rain',
-      65: '⛈️ Thunderstorm',
-      71: '❄️ Snowy',
-      73: '❄️ Snow',
-      75: '❄️ Heavy Snow',
-      77: '❄️ Snow',
-      80: '🌧️ Showers',
-      81: '🌧️ Heavy Showers',
-      82: '⛈️ Thunderstorm',
-      85: '❄️ Snow Showers',
-      86: '❄️ Heavy Snow',
-      95: '⛈️ Thunderstorm',
-      96: '⛈️ Thunderstorm',
-      99: '⛈️ Thunderstorm'
-    };
-    
-    const weather = weatherDescriptions[current.weather_code] || '🌡️ Unknown';
-    
-    await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.info).setTitle(`🌤️ Weather - ${cityName}, ${country}`).addFields(
-      {name: '🌡️ Temperature', value: `${temp}°C`, inline: true},
-      {name: '💧 Humidity', value: `${humidity}%`, inline: true},
-      {name: '💨 Wind Speed', value: `${windSpeed} km/h`, inline: true},
-      {name: '⛅ Condition', value: weather, inline: true}
-    ).setTimestamp()] });
-  } catch (err) {
-    message.reply({ embeds: [createErrorEmbed('City not found. Try another city like London, Karachi, or New York.')] });
-  }
-}
-
-async function addRoleCommand(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  
-  if (args.length < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: 'ADD ROLE', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=addrole <@user> <@role>`')
-      .addFields({
-        name: 'Example',
-        value: '```=addrole @User @Admin\n=addrole @Shadow @Moderator```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-  
-  const userId = extractId(args[0]);
-  const roleId = extractId(args[1]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('❌ Invalid user mention. Use: =addrole @user @role')] });
-  if (!roleId) return message.reply({ embeds: [createErrorEmbed('❌ Invalid role mention. Use: =addrole @user @role')] });
-  try {
-    const user = await message.guild.members.fetch(userId);
-    const role = message.guild.roles.cache.get(roleId);
-    if (!role) return message.reply({ embeds: [createErrorEmbed('Role not found')] });
-    await user.roles.add(role);
-    await message.reply({ embeds: [createSuccessEmbed('Role Added', `✅ ${role.name} added to ${user}`)] });
-  } catch (err) {
-    message.reply({ embeds: [createErrorEmbed(`❌ Error: ${err.message || 'Could not add role. Check bot/role permissions.'}`)] });
-  }
-}
-
-async function removeRoleCommand(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  const roleId = extractId(args[1]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  if (!roleId) return message.reply({ embeds: [createErrorEmbed('Invalid role mention')] });
-  try {
-    const user = await message.guild.members.fetch(userId);
-    const role = message.guild.roles.cache.get(roleId);
-    if (!role) return message.reply({ embeds: [createErrorEmbed('Role not found')] });
-    await user.roles.remove(role);
-    await message.reply({ embeds: [createSuccessEmbed('Role Removed', `✅ ${role.name} removed from ${user}`)] });
-  } catch (err) {
-    message.reply({ embeds: [createErrorEmbed('Could not remove role. Check permissions.')] });
-  }
-}
-
-async function timeoutUser(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  try {
-    const user = await message.guild.members.fetch(userId);
-    const minutes = parseInt(args[1]) || 60;
-    await user.timeout(minutes * 60000);
-    await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.warning).setDescription(`⏱️ ${user} timed out for ${minutes} minutes`).setTimestamp()] });
-  } catch (err) {
-    message.reply({ embeds: [createErrorEmbed('Could not timeout user. Check permissions.')] });
-  }
-}
-
-async function changeNickname(message, args) {
-  if (!isAdmin(message.member)) return message.reply({ embeds: [createErrorEmbed('Admin only')] });
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention')] });
-  try {
-    const user = await message.guild.members.fetch(userId);
-    const nickname = args.slice(1).join(' ') || null;
-    await user.setNickname(nickname);
-    const text = nickname ? `changed to **${nickname}**` : 'reset';
-    await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.success).setDescription(`📝 Nickname ${text} for ${user}`).setTimestamp()] });
-  } catch (err) {
-    message.reply({ embeds: [createErrorEmbed('Could not change nickname. Check permissions.')] });
-  }
-}
-// ==================== NEW MINI GAMES ====================
-
-// 🎌 Flag Guessing Game
+// ==================== FLAG GAME (FIXED) ====================
 async function flagGameCommand(message, args) {
   const difficulty = args[0]?.toLowerCase() || 'easy';
-  let countryCount = 5;
   
-  if (difficulty === 'hard') countryCount = 10;
-  else if (difficulty === 'extreme') countryCount = 15;
+  if (!['easy', 'medium', 'hard', 'extreme'].includes(difficulty)) {
+    return message.reply({ 
+      embeds: [createErrorEmbed('Invalid difficulty! Use: easy, medium, hard, extreme')] 
+    });
+  }
   
+  const countries = COUNTRIES[difficulty];
+  const gameId = `${message.channel.id}_${message.author.id}`;
+  
+  if (activeGames.has(gameId)) {
+    return message.reply({ embeds: [createErrorEmbed('You already have an active game!')] });
+  }
+  
+  // Select 5 random countries
   const selectedCountries = [];
-  const selectedFlags = [];
-  
-  while (selectedCountries.length < countryCount) {
-    const randomCountry = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
-    if (!selectedCountries.includes(randomCountry)) {
+  while (selectedCountries.length < 5 && selectedCountries.length < countries.length) {
+    const randomCountry = countries[Math.floor(Math.random() * countries.length)];
+    if (!selectedCountries.some(c => c.name === randomCountry.name)) {
       selectedCountries.push(randomCountry);
-      selectedFlags.push(randomCountry.flag);
     }
   }
   
-  const gameId = `${message.channel.id}_${message.author.id}`;
   const gameData = {
     type: 'flag',
     countries: selectedCountries,
-    flags: selectedFlags,
     currentRound: 0,
     score: 0,
     startTime: Date.now(),
-    difficulty: difficulty
+    difficulty: difficulty,
+    playerId: message.author.id,
+    channelId: message.channel.id,
+    active: true
   };
   
   activeGames.set(gameId, gameData);
   
   const embed = new EmbedBuilder()
     .setColor(COLORS.game)
-    .setAuthor({ name: '🎌 Flag Guessing Game', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**Difficulty:** ${difficulty.toUpperCase()}\n**Rounds:** ${countryCount}\n\nGuess the country for each flag!`)
+    .setAuthor({ name: '🎌 FLAG GUESSING GAME', iconURL: message.author.displayAvatarURL() })
+    .setTitle(`Difficulty: ${difficulty.toUpperCase()}`)
+    .setDescription(`**Guess ${selectedCountries.length} flags!**`)
     .addFields(
-      { name: '🏆 Scoring', value: '• Correct guess: 10 XP\n• Bonus for speed: Up to 5 XP\n• Perfect game bonus: 50 XP', inline: false },
-      { name: '🎯 How to Play', value: 'Type the country name when a flag appears!\nType `quit` to end the game.', inline: false }
+      { name: '🎯 Rounds', value: `${selectedCountries.length}`, inline: true },
+      { name: '🏆 Scoring', value: 'Correct: 15 XP\nSpeed Bonus: Up to 10 XP', inline: true },
+      { name: '🎮 How to Play', value: 'Type the country name when flag appears!\nType `quit` to end game', inline: false }
     )
     .setFooter({ text: 'Game starting in 5 seconds...' })
     .setTimestamp();
   
-  const msg = await message.reply({ embeds: [embed] });
-  gameData.messageId = msg.id;
+  const startMsg = await message.reply({ embeds: [embed] });
+  gameData.messageId = startMsg.id;
   
-  setTimeout(() => startFlagRound(message, gameId, msg), 5000);
+  setTimeout(() => {
+    startFlagRound(message, gameId);
+  }, 5000);
 }
 
-async function startFlagRound(message, gameId, gameMessage) {
+async function startFlagRound(message, gameId) {
   const gameData = activeGames.get(gameId);
-  if (!gameData) return;
+  if (!gameData || !gameData.active) return;
   
   if (gameData.currentRound >= gameData.countries.length) {
-    await endFlagGame(message, gameId, gameMessage);
+    endFlagGame(message, gameId);
     return;
   }
   
   const currentCountry = gameData.countries[gameData.currentRound];
+  gameData.roundStartTime = Date.now();
   
   const embed = new EmbedBuilder()
     .setColor(COLORS.game)
-    .setAuthor({ name: `🎌 Round ${gameData.currentRound + 1}/${gameData.countries.length}`, iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**Flag:** ${currentCountry.flag}\n\nGuess the country name!`)
-    .setFooter({ text: `Difficulty: ${gameData.difficulty.toUpperCase()} | Type your answer below` })
+    .setAuthor({ name: `🎌 ROUND ${gameData.currentRound + 1}/${gameData.countries.length}`, iconURL: message.author.displayAvatarURL() })
+    .setDescription(`**Guess the country for this flag:**\n\n${currentCountry.flag}`)
+    .addFields(
+      { name: '📊 Score', value: `${gameData.score}/${gameData.currentRound}`, inline: true },
+      { name: '⏱️ Time', value: '30 seconds', inline: true }
+    )
+    .setFooter({ text: `Difficulty: ${gameData.difficulty.toUpperCase()} | Type your answer` })
     .setTimestamp();
   
-  await gameMessage.edit({ embeds: [embed] });
-  gameData.roundStartTime = Date.now();
+  const roundMsg = await message.channel.send({ embeds: [embed] });
+  gameData.roundMessageId = roundMsg.id;
+  
+  gameData.timeout = setTimeout(() => {
+    if (activeGames.has(gameId)) {
+      const currentGame = activeGames.get(gameId);
+      if (currentGame.currentRound === gameData.currentRound) {
+        message.channel.send({ 
+          embeds: [createErrorEmbed(`⏰ Time's up! Answer was: **${currentCountry.name}**`)] 
+        });
+        currentGame.currentRound++;
+        startFlagRound(message, gameId);
+      }
+    }
+  }, 30000);
 }
 
+// ==================== ANIMAL GAME (FIXED) ====================
+async function animalGameCommand(message, args) {
+  const difficulty = args[0]?.toLowerCase() || 'easy';
+  
+  if (!['easy', 'medium', 'hard', 'extreme'].includes(difficulty)) {
+    return message.reply({ 
+      embeds: [createErrorEmbed('Invalid difficulty! Use: easy, medium, hard, extreme')] 
+    });
+  }
+  
+  const animals = ANIMALS[difficulty];
+  const gameId = `${message.channel.id}_${message.author.id}`;
+  
+  if (activeGames.has(gameId)) {
+    return message.reply({ embeds: [createErrorEmbed('You already have an active game!')] });
+  }
+  
+  // Select 5 random animals
+  const selectedAnimals = [];
+  while (selectedAnimals.length < 5 && selectedAnimals.length < animals.length) {
+    const randomAnimal = animals[Math.floor(Math.random() * animals.length)];
+    if (!selectedAnimals.includes(randomAnimal)) {
+      selectedAnimals.push(randomAnimal);
+    }
+  }
+  
+  // Scramble animals
+  const scrambledAnimals = selectedAnimals.map(animal => scrambleWord(animal));
+  
+  const gameData = {
+    type: 'animal',
+    animals: selectedAnimals,
+    scrambled: scrambledAnimals,
+    currentRound: 0,
+    score: 0,
+    hintsUsed: 0,
+    maxHints: 3,
+    maxAttempts: 3,
+    startTime: Date.now(),
+    difficulty: difficulty,
+    playerId: message.author.id,
+    active: true
+  };
+  
+  activeGames.set(gameId, gameData);
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.game)
+    .setAuthor({ name: '🐾 ANIMAL GUESSING GAME', iconURL: message.author.displayAvatarURL() })
+    .setTitle(`Difficulty: ${difficulty.toUpperCase()}`)
+    .setDescription(`**Unscramble ${selectedAnimals.length} animal names!**`)
+    .addFields(
+      { name: '🎯 Rounds', value: `${selectedAnimals.length}`, inline: true },
+      { name: '💡 Hints', value: '3 hints available', inline: true },
+      { name: '🏆 Scoring', value: 'Correct: 10 XP\nNo hints: +5 XP bonus', inline: true },
+      { name: '🎮 Commands', value: 'Type animal name\n`hint` - Get hint\n`skip` - Skip animal\n`quit` - End game', inline: false }
+    )
+    .setFooter({ text: 'Game starting in 5 seconds...' })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+  
+  setTimeout(() => {
+    startAnimalRound(message, gameId);
+  }, 5000);
+}
+
+function scrambleWord(word) {
+  const arr = word.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.join('').toUpperCase();
+}
+
+async function startAnimalRound(message, gameId) {
+  const gameData = activeGames.get(gameId);
+  if (!gameData || !gameData.active) return;
+  
+  if (gameData.currentRound >= gameData.animals.length) {
+    endAnimalGame(message, gameId);
+    return;
+  }
+  
+  const currentAnimal = gameData.animals[gameData.currentRound];
+  const scrambled = gameData.scrambled[gameData.currentRound];
+  gameData.roundStartTime = Date.now();
+  gameData.attempts = 0;
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.game)
+    .setAuthor({ name: `🐾 ROUND ${gameData.currentRound + 1}/${gameData.animals.length}`, iconURL: message.author.displayAvatarURL() })
+    .setDescription(`**Unscramble the letters!**\n\n\`${scrambled}\``)
+    .addFields(
+      { name: '📊 Score', value: `${gameData.score}/${gameData.currentRound}`, inline: true },
+      { name: '💡 Hints Left', value: `${gameData.maxHints - gameData.hintsUsed}`, inline: true },
+      { name: '🔤 Word Length', value: `${currentAnimal.length} letters`, inline: true }
+    )
+    .setFooter({ text: `Difficulty: ${gameData.difficulty.toUpperCase()} | Type your answer` })
+    .setTimestamp();
+  
+  await message.channel.send({ embeds: [embed] });
+}
+
+// ==================== EVENT HANDLERS ====================
+client.on('messageCreate', async (message) => {
+  if (message.author.bot) return;
+  
+  try {
+    // Add XP for message
+    if (message.guild && Math.random() < 0.3) {
+      addXP(message.author.id, message.guild.id, XP_CONFIG.PER_MESSAGE, 'message');
+      dataStore.incrementMessageCount(message.guild.id);
+    }
+    
+    // Handle game responses
+    await handleGameResponse(message);
+    
+    // Check for commands
+    if (!message.content.startsWith(PREFIX)) return;
+    
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+    
+    // Command routing
+    switch (command) {
+      // Basic
+      case 'help': await helpCommand(message); break;
+      case 'ping': await pingCommand(message); break;
+      case 'botinfo': await botInfoCommand(message); break;
+      
+      // Games
+      case 'flag': await flagGameCommand(message, args); break;
+      case 'animal': await animalGameCommand(message, args); break;
+      case 'rps': await rpsGameCommand(message, args); break;
+      case 'trivia': await triviaGameCommand(message, args); break;
+      case 'number': await numberGameCommand(message, args); break;
+      case 'hangman': await hangmanGameCommand(message, args); break;
+      
+      // XP System
+      case 'rank': await rankCommand(message, args); break;
+      case 'leaderboard': 
+      case 'lb': await leaderboardCommand(message, args); break;
+      case 'daily': await dailyCommand(message); break;
+      case 'xpinfo': await xpInfoCommand(message); break;
+      
+      // User Info
+      case 'ui': 
+      case 'userinfo': await userInfoCommand(message, args); break;
+      case 'avatar': await avatarCommand(message, args); break;
+      
+      // Utility
+      case 'calc': await calcCommand(message, args); break;
+      case 'weather': await weatherCommand(message, args); break;
+      case 'translate': await translateCommand(message, args); break;
+      
+      // Fun
+      case 'joke': await jokeCommand(message); break;
+      case 'quote': await quoteCommand(message); break;
+      case 'coin': await coinFlipCommand(message); break;
+      case 'dice': await diceRollCommand(message, args); break;
+      case '8ball': await eightBallCommand(message, args); break;
+      
+      // Moderation
+      case 'clear': await clearCommand(message, args); break;
+      case 'kick': await kickCommand(message, args); break;
+      case 'ban': await banCommand(message, args); break;
+      case 'warn': await warnCommand(message, args); break;
+      
+      default:
+        await message.reply({ 
+          embeds: [createErrorEmbed(`Command not found! Use \`${PREFIX}help\``)] 
+        });
+        break;
+    }
+    
+  } catch (error) {
+    console.error('Error:', error);
+    message.reply({ embeds: [createErrorEmbed('Something went wrong!')] });
+  }
+});
+
+// ==================== GAME RESPONSE HANDLER ====================
+async function handleGameResponse(message) {
+  const gameId = `${message.channel.id}_${message.author.id}`;
+  const gameData = activeGames.get(gameId);
+  
+  if (!gameData || !gameData.active) return;
+  
+  const content = message.content.trim().toLowerCase();
+  
+  // Quit game
+  if (content === 'quit' || content === 'exit' || content === 'end') {
+    if (gameData.type === 'flag') endFlagGame(message, gameId, true);
+    else if (gameData.type === 'animal') endAnimalGame(message, gameId, true);
+    activeGames.delete(gameId);
+    return;
+  }
+  
+  // Handle flag game
+  if (gameData.type === 'flag') {
+    await handleFlagGuess(message, gameId, content);
+  }
+  
+  // Handle animal game
+  if (gameData.type === 'animal') {
+    await handleAnimalGuess(message, gameId, content);
+  }
+}
+
+// Flag game handler
 async function handleFlagGuess(message, gameId, guess) {
   const gameData = activeGames.get(gameId);
-  if (!gameData) return;
+  if (!gameData || gameData.type !== 'flag') return;
   
   const currentCountry = gameData.countries[gameData.currentRound];
-  const guessLower = guess.toLowerCase();
   const countryLower = currentCountry.name.toLowerCase();
   
-  let isCorrect = false;
-  let xpEarned = 0;
+  if (guess === 'skip') {
+    gameData.currentRound++;
+    message.channel.send({ 
+      embeds: [createErrorEmbed(`Skipped! Answer was: **${currentCountry.name}**`)] 
+    });
+    setTimeout(() => startFlagRound(message, gameId), 2000);
+    return;
+  }
   
-  // Check if guess is correct
-  if (guessLower === countryLower || guessLower === currentCountry.code.toLowerCase()) {
-    isCorrect = true;
+  // Clear timeout
+  if (gameData.timeout) {
+    clearTimeout(gameData.timeout);
+  }
+  
+  const timeTaken = Date.now() - gameData.roundStartTime;
+  
+  if (guess === countryLower || guess === currentCountry.code.toLowerCase()) {
+    // Correct guess
     gameData.score++;
     
-    // Calculate XP based on speed
-    const timeTaken = Date.now() - gameData.roundStartTime;
-    let baseXP = 10;
-    let speedBonus = 0;
-    
-    if (timeTaken < 5000) speedBonus = 5;
-    else if (timeTaken < 10000) speedBonus = 3;
-    else if (timeTaken < 15000) speedBonus = 1;
-    
-    xpEarned = baseXP + speedBonus;
-    
-    // Add XP to user
-    const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'flag_game');
+    // Calculate XP
+    let xpEarned = 15;
+    if (timeTaken < 5000) xpEarned += 10;
+    else if (timeTaken < 10000) xpEarned += 7;
+    else if (timeTaken < 15000) xpEarned += 5;
+    else if (timeTaken < 20000) xpEarned += 3;
     
     const embed = new EmbedBuilder()
       .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Correct!', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**Country:** ${currentCountry.name} ${currentCountry.flag}`)
+      .setAuthor({ name: '✅ CORRECT!', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**${currentCountry.name}** ${currentCountry.flag}`)
       .addFields(
-        { name: '🎯 Score', value: `${gameData.score}/${gameData.countries.length}`, inline: true },
-        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true },
-        { name: '⏱️ Time', value: `${(timeTaken / 1000).toFixed(1)}s`, inline: true }
+        { name: '⏱️ Time', value: `${(timeTaken/1000).toFixed(1)}s`, inline: true },
+        { name: '⭐ XP', value: `${xpEarned} XP`, inline: true },
+        { name: '📊 Score', value: `${gameData.score}/${gameData.currentRound + 1}`, inline: true }
       )
-      .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : `Total XP: ${xpResult.xp}` })
+      .setFooter({ text: 'Next round in 3 seconds...' })
       .setTimestamp();
     
     await message.reply({ embeds: [embed] });
+    
+    // Add XP
+    addXP(message.author.id, message.guild.id, xpEarned, 'flag_game_correct');
+    
   } else {
+    // Wrong guess
     const embed = new EmbedBuilder()
       .setColor(COLORS.error)
-      .setAuthor({ name: '❌ Incorrect', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`The correct answer was: **${currentCountry.name}** ${currentCountry.flag}`)
+      .setAuthor({ name: '❌ WRONG!', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**Correct answer:** ${currentCountry.name} ${currentCountry.flag}`)
       .addFields(
-        { name: '🎯 Score', value: `${gameData.score}/${gameData.countries.length}`, inline: true },
+        { name: '📊 Score', value: `${gameData.score}/${gameData.currentRound + 1}`, inline: true },
         { name: '🤔 Your Guess', value: guess, inline: true }
       )
       .setFooter({ text: 'Better luck next round!' })
       .setTimestamp();
     
     await message.reply({ embeds: [embed] });
+    
+    // Small XP for participation
+    addXP(message.author.id, message.guild.id, 2, 'flag_game_participation');
   }
   
   gameData.currentRound++;
   
-  // Start next round after 3 seconds
-  setTimeout(async () => {
-    const gameMessage = await message.channel.messages.fetch(gameData.messageId).catch(() => null);
-    if (gameMessage) {
-      await startFlagRound(message, gameId, gameMessage);
-    }
+  // Next round
+  setTimeout(() => {
+    startFlagRound(message, gameId);
   }, 3000);
 }
+// Animal game handler
+async function handleAnimalGuess(message, gameId, guess) {
+  const gameData = activeGames.get(gameId);
+  if (!gameData || gameData.type !== 'animal') return;
+  
+  const currentAnimal = gameData.animals[gameData.currentRound];
+  
+  if (guess === 'skip') {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.warning)
+      .setDescription(`**Skipped!** The animal was: **${currentAnimal.toUpperCase()}**`)
+      .setFooter({ text: 'Next round in 3 seconds...' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    gameData.currentRound++;
+    gameData.hintsUsed = 0;
+    
+    setTimeout(() => {
+      startAnimalRound(message, gameId);
+    }, 3000);
+    return;
+  }
+  
+  if (guess === 'hint') {
+    if (gameData.hintsUsed >= gameData.maxHints) {
+      await message.reply({ embeds: [createErrorEmbed('No hints left!')] });
+      return;
+    }
+    
+    gameData.hintsUsed++;
+    const hint = currentAnimal.substring(0, Math.min(gameData.hintsUsed + 1, currentAnimal.length));
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '💡 HINT', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**Starts with:** \`${hint.toUpperCase()}\`\n\nScrambled: \`${gameData.scrambled[gameData.currentRound]}\``)
+      .setFooter({ text: `Hint ${gameData.hintsUsed}/${gameData.maxHints} | -3 XP penalty` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    return;
+  }
+  
+  gameData.attempts++;
+  
+  if (guess === currentAnimal.toLowerCase()) {
+    // Calculate XP
+    let xpEarned = 10;
+    const timeTaken = Date.now() - gameData.roundStartTime;
+    
+    // Speed bonus
+    if (timeTaken < 10000) xpEarned += 5;
+    
+    // No hint bonus
+    if (gameData.hintsUsed === 0) xpEarned += 5;
+    
+    // First attempt bonus
+    if (gameData.attempts === 1) xpEarned += 3;
+    
+    // Hint penalty
+    xpEarned -= (gameData.hintsUsed * 3);
+    
+    if (xpEarned < 3) xpEarned = 3;
+    
+    gameData.score++;
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '✅ CORRECT!', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**${currentAnimal.toUpperCase()}** 🎉`)
+      .addFields(
+        { name: '🎯 Attempts', value: `${gameData.attempts}`, inline: true },
+        { name: '⏱️ Time', value: `${(timeTaken/1000).toFixed(1)}s`, inline: true },
+        { name: '💡 Hints Used', value: `${gameData.hintsUsed}`, inline: true },
+        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true },
+        { name: '📊 Score', value: `${gameData.score}/${gameData.currentRound + 1}`, inline: false }
+      )
+      .setFooter({ text: 'Next round in 3 seconds...' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+    // Add XP
+    addXP(message.author.id, message.guild.id, xpEarned, 'animal_game_correct');
+    
+    gameData.currentRound++;
+    gameData.hintsUsed = 0;
+    
+    setTimeout(() => {
+      startAnimalRound(message, gameId);
+    }, 3000);
+    
+  } else {
+    if (gameData.attempts >= gameData.maxAttempts) {
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.error)
+        .setAuthor({ name: '❌ FAILED', iconURL: message.author.displayAvatarURL() })
+        .setDescription(`**The animal was:** ${currentAnimal.toUpperCase()}`)
+        .addFields(
+          { name: '📊 Score', value: `${gameData.score}/${gameData.currentRound + 1}`, inline: true },
+          { name: '🎯 Attempts Used', value: `${gameData.attempts}`, inline: true }
+        )
+        .setFooter({ text: 'Next round in 3 seconds...' })
+        .setTimestamp();
+      
+      await message.reply({ embeds: [embed] });
+      
+      // Small XP for trying
+      addXP(message.author.id, message.guild.id, 1, 'animal_game_participation');
+      
+      gameData.currentRound++;
+      gameData.hintsUsed = 0;
+      
+      setTimeout(() => {
+        startAnimalRound(message, gameId);
+      }, 3000);
+    } else {
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.warning)
+        .setDescription(`**Try again!**\n\nScrambled: \`${gameData.scrambled[gameData.currentRound]}\`\n\nAttempts: ${gameData.attempts}/${gameData.maxAttempts}`)
+        .setFooter({ text: `Type \`hint\` for help or \`skip\` to skip` })
+        .setTimestamp();
+      
+      await message.reply({ embeds: [embed] });
+    }
+  }
+}
 
-async function endFlagGame(message, gameId, gameMessage) {
+// End flag game
+async function endFlagGame(message, gameId, manualEnd = false) {
   const gameData = activeGames.get(gameId);
   if (!gameData) return;
+  
+  if (gameData.timeout) {
+    clearTimeout(gameData.timeout);
+  }
+  
+  gameData.active = false;
+  activeGames.delete(gameId);
+  
+  const totalTime = Date.now() - gameData.startTime;
+  const minutes = Math.floor(totalTime / 60000);
+  const seconds = Math.floor((totalTime % 60000) / 1000);
+  
+  let finalXP = gameData.score * 15;
+  let bonusXP = 0;
+  
+  // Perfect game bonus
+  if (gameData.score === gameData.countries.length) {
+    bonusXP += 100;
+  }
+  
+  // Difficulty bonus
+  if (gameData.difficulty === 'medium') bonusXP += 20;
+  else if (gameData.difficulty === 'hard') bonusXP += 40;
+  else if (gameData.difficulty === 'extreme') bonusXP += 75;
+  
+  finalXP += bonusXP;
+  
+  // Add final XP
+  const xpResult = addXP(message.author.id, message.guild.id, finalXP, 'flag_game_complete');
+  
+  const embed = new EmbedBuilder()
+    .setColor(gameData.score === gameData.countries.length ? COLORS.xp : COLORS.primary)
+    .setAuthor({ name: '🏁 FLAG GAME COMPLETE', iconURL: message.author.displayAvatarURL() })
+    .setTitle(`${gameData.difficulty.toUpperCase()} MODE`)
+    .addFields(
+      { name: '🏆 Final Score', value: `${gameData.score}/${gameData.countries.length}`, inline: true },
+      { name: '📊 Accuracy', value: `${((gameData.score / gameData.countries.length) * 100).toFixed(1)}%`, inline: true },
+      { name: '⏱️ Time', value: `${minutes}m ${seconds}s`, inline: true },
+      { name: '💰 Total XP', value: `${finalXP}`, inline: true }
+    )
+    .setFooter({ 
+      text: xpResult.levelUp ? 
+        `🎉 LEVEL UP! Level ${xpResult.oldLevel} → ${xpResult.newLevel}` : 
+        `Current Level: ${xpResult.level}` 
+    })
+    .setTimestamp();
+  
+  if (gameData.score === gameData.countries.length) {
+    embed.setDescription('**🎯 PERFECT GAME! 🎯**');
+  } else if (manualEnd) {
+    embed.setDescription('**Game ended by player**');
+  }
+  
+  await message.channel.send({ embeds: [embed] });
+}
+
+// End animal game
+async function endAnimalGame(message, gameId, manualEnd = false) {
+  const gameData = activeGames.get(gameId);
+  if (!gameData) return;
+  
+  gameData.active = false;
+  activeGames.delete(gameId);
   
   const totalTime = Date.now() - gameData.startTime;
   const minutes = Math.floor(totalTime / 60000);
@@ -2067,341 +895,210 @@ async function endFlagGame(message, gameId, gameMessage) {
   let bonusXP = 0;
   
   // Perfect game bonus
-  if (gameData.score === gameData.countries.length) {
-    bonusXP = 50;
-    finalXP += bonusXP;
+  if (gameData.score === gameData.animals.length) {
+    bonusXP += 50;
   }
   
   // Difficulty bonus
-  if (gameData.difficulty === 'hard') bonusXP += 20;
-  else if (gameData.difficulty === 'extreme') bonusXP += 40;
+  if (gameData.difficulty === 'medium') bonusXP += 15;
+  else if (gameData.difficulty === 'hard') bonusXP += 30;
+  else if (gameData.difficulty === 'extreme') bonusXP += 60;
   
   finalXP += bonusXP;
   
   // Add final XP
-  const xpResult = addXP(message.author.id, message.guild.id, finalXP, 'flag_game_complete');
+  const xpResult = addXP(message.author.id, message.guild.id, finalXP, 'animal_game_complete');
   
   const embed = new EmbedBuilder()
-    .setColor(gameData.score === gameData.countries.length ? COLORS.xp : COLORS.primary)
-    .setAuthor({ name: '🏁 Game Complete!', iconURL: message.author.displayAvatarURL() })
-    .setTitle(`🎌 Flag Guessing Game - ${gameData.difficulty.toUpperCase()}`)
+    .setColor(gameData.score === gameData.animals.length ? COLORS.xp : COLORS.primary)
+    .setAuthor({ name: '🏁 ANIMAL GAME COMPLETE', iconURL: message.author.displayAvatarURL() })
+    .setTitle(`${gameData.difficulty.toUpperCase()} MODE`)
     .addFields(
-      { name: '🏆 Final Score', value: `${gameData.score}/${gameData.countries.length}`, inline: true },
-      { name: '⭐ Total XP', value: `${finalXP} XP`, inline: true },
+      { name: '🏆 Final Score', value: `${gameData.score}/${gameData.animals.length}`, inline: true },
+      { name: '📊 Accuracy', value: `${((gameData.score / gameData.animals.length) * 100).toFixed(1)}%`, inline: true },
       { name: '⏱️ Time', value: `${minutes}m ${seconds}s`, inline: true },
-      { name: '📊 Accuracy', value: `${((gameData.score / gameData.countries.length) * 100).toFixed(1)}%`, inline: false }
+      { name: '💡 Hints Used', value: `${gameData.hintsUsed}`, inline: true },
+      { name: '💰 Total XP', value: `${finalXP}`, inline: true }
     )
     .setFooter({ 
       text: xpResult.levelUp ? 
-        `🎉 Leveled up to ${xpResult.level}! Total XP: ${xpResult.xp}` : 
-        `Total XP: ${xpResult.xp} | Level: ${xpResult.level}` 
+        `🎉 LEVEL UP! Level ${xpResult.oldLevel} → ${xpResult.newLevel}` : 
+        `Current Level: ${xpResult.level}` 
     })
     .setTimestamp();
   
-  if (gameData.score === gameData.countries.length) {
-    embed.setDescription('**🎯 PERFECT GAME!** 🎯\nYou got every flag correct!');
+  if (gameData.score === gameData.animals.length) {
+    embed.setDescription('**🎯 PERFECT GAME! 🎯**');
+  } else if (manualEnd) {
+    embed.setDescription('**Game ended by player**');
   }
   
-  await gameMessage.edit({ embeds: [embed] });
-  activeGames.delete(gameId);
+  await message.channel.send({ embeds: [embed] });
 }
 
-// 🐾 Animal Guessing Game
-async function animalGameCommand(message, args) {
-  const gameId = `${message.channel.id}_${message.author.id}`;
+// ==================== OTHER GAMES ====================
+async function rpsGameCommand(message, args) {
+  const choice = args[0]?.toLowerCase();
+  const choices = ['rock', 'paper', 'scissors'];
   
-  if (activeGames.has(gameId)) {
-    return message.reply({ embeds: [createErrorEmbed('You already have an active game!')] });
+  if (!choice || !choices.includes(choice)) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '✊ ROCK PAPER SCISSORS', iconURL: client.user.displayAvatarURL() })
+      .setDescription(`**Usage:** \`${PREFIX}rps <rock|paper|scissors>\``)
+      .addFields(
+        { name: '🎮 Example', value: '`=rps rock`\n`=rps paper`\n`=rps scissors`', inline: false },
+        { name: '🏆 XP Rewards', value: 'Win: 15 XP\nDraw: 5 XP\nLose: 2 XP', inline: false }
+      )
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
   }
   
-  const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-  const scrambled = animal.split('').sort(() => Math.random() - 0.5).join('');
+  const botChoice = choices[Math.floor(Math.random() * 3)];
+  const emojis = { rock: '✊', paper: '✋', scissors: '✌️' };
+  
+  let result, xpEarned;
+  
+  if (choice === botChoice) {
+    result = '**🤝 DRAW!**';
+    xpEarned = 5;
+  } else if (
+    (choice === 'rock' && botChoice === 'scissors') ||
+    (choice === 'paper' && botChoice === 'rock') ||
+    (choice === 'scissors' && botChoice === 'paper')
+  ) {
+    result = '**🎉 YOU WIN!**';
+    xpEarned = 15;
+  } else {
+    result = '**😢 YOU LOSE!**';
+    xpEarned = 2;
+  }
+  
+  const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'rps_game');
+  
+  const embed = new EmbedBuilder()
+    .setColor(result.includes('WIN') ? COLORS.success : result.includes('LOSE') ? COLORS.error : COLORS.warning)
+    .setAuthor({ name: '✊ ROCK PAPER SCISSORS', iconURL: message.author.displayAvatarURL() })
+    .addFields(
+      { name: '👤 Your Choice', value: `${emojis[choice]} ${choice.toUpperCase()}`, inline: true },
+      { name: '🤖 Bot Choice', value: `${emojis[botChoice]} ${botChoice.toUpperCase()}`, inline: true },
+      { name: '🏆 Result', value: result, inline: true },
+      { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: false }
+    )
+    .setFooter({ text: xpResult.levelUp ? `🎉 Level up to ${xpResult.level}!` : `Current Level: ${xpResult.level}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function triviaGameCommand(message, args) {
+  const categories = ['general', 'science', 'history', 'geography', 'animals', 'sports'];
+  const category = args[0]?.toLowerCase() || 'general';
+  
+  if (!categories.includes(category)) {
+    return message.reply({ 
+      embeds: [createErrorEmbed(`Invalid category! Use: ${categories.join(', ')}`)] 
+    });
+  }
+  
+  const questions = {
+    general: [
+      { question: 'What is the capital of France?', answer: 'paris', options: ['London', 'Berlin', 'Paris', 'Madrid'] },
+      { question: 'How many continents are there?', answer: '7', options: ['5', '6', '7', '8'] },
+      { question: 'What is the largest ocean?', answer: 'pacific', options: ['Atlantic', 'Indian', 'Pacific', 'Arctic'] }
+    ],
+    science: [
+      { question: 'What is H2O?', answer: 'water', options: ['Hydrogen', 'Oxygen', 'Water', 'Carbon Dioxide'] },
+      { question: 'What planet is known as the Red Planet?', answer: 'mars', options: ['Venus', 'Mars', 'Jupiter', 'Saturn'] },
+      { question: 'What is the fastest land animal?', answer: 'cheetah', options: ['Lion', 'Cheetah', 'Leopard', 'Tiger'] }
+    ]
+  };
+  
+  const categoryQuestions = questions[category] || questions.general;
+  const randomQuestion = categoryQuestions[Math.floor(Math.random() * categoryQuestions.length)];
+  
+  const gameId = `${message.channel.id}_${message.author.id}`;
   
   const gameData = {
-    type: 'animal',
-    answer: animal,
-    scrambled: scrambled,
-    attempts: 0,
-    maxAttempts: 5,
-    hintsUsed: 0,
-    startTime: Date.now()
+    type: 'trivia',
+    question: randomQuestion.question,
+    answer: randomQuestion.answer,
+    options: randomQuestion.options,
+    startTime: Date.now(),
+    playerId: message.author.id,
+    active: true
   };
   
   activeGames.set(gameId, gameData);
+  
+  const optionsText = randomQuestion.options.map((opt, idx) => {
+    const letter = String.fromCharCode(65 + idx);
+    return `${letter}) ${opt}`;
+  }).join('\n');
   
   const embed = new EmbedBuilder()
     .setColor(COLORS.game)
-    .setAuthor({ name: '🐾 Animal Guessing Game', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**Scrambled Word:** \`${scrambled.toUpperCase()}\``)
+    .setAuthor({ name: '🧠 TRIVIA', iconURL: message.author.displayAvatarURL() })
+    .setTitle(`Category: ${category.toUpperCase()}`)
+    .setDescription(`**${randomQuestion.question}**\n\n${optionsText}`)
     .addFields(
-      { name: '🎯 How to Play', value: 'Unscramble the letters to guess the animal name!\n\n**Commands:**\n`hint` - Get a hint\n`skip` - Skip this animal\n`quit` - End game', inline: false },
-      { name: '🏆 Scoring', value: '• Correct guess: 15 XP\n• Bonus for fewer attempts\n• Hint penalty: -3 XP per hint', inline: false }
+      { name: '⏱️ Time Limit', value: '30 seconds', inline: true },
+      { name: '🏆 XP Reward', value: 'Correct: 20 XP', inline: true }
     )
-    .setFooter({ text: `Attempts: 0/${gameData.maxAttempts} | Type your guess below` })
+    .setFooter({ text: 'Reply with A, B, C, or D | Type "quit" to end' })
     .setTimestamp();
   
-  const msg = await message.reply({ embeds: [embed] });
-  gameData.messageId = msg.id;
+  const triviaMsg = await message.reply({ embeds: [embed] });
+  gameData.messageId = triviaMsg.id;
+  
+  gameData.timeout = setTimeout(async () => {
+    if (activeGames.has(gameId)) {
+      activeGames.delete(gameId);
+      await message.channel.send({ 
+        embeds: [createErrorEmbed(`⏰ Time's up! Answer was: **${randomQuestion.answer}**`)] 
+      });
+    }
+  }, 30000);
 }
 
-async function handleAnimalGuess(message, gameId, guess) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
+// ==================== XP COMMANDS ====================
+async function rankCommand(message, args) {
+  let targetUser = message.author;
   
-  if (guess.toLowerCase() === 'hint') {
-    gameData.hintsUsed++;
-    const hint = gameData.answer.substring(0, Math.min(gameData.hintsUsed + 2, gameData.answer.length));
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '💡 Hint', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`Starts with: **${hint.toUpperCase()}**\n\nScrambled: \`${gameData.scrambled.toUpperCase()}\``)
-      .setFooter({ text: `Hint ${gameData.hintsUsed}/3 | -3 XP per hint` })
-      .setTimestamp();
-    await message.reply({ embeds: [embed] });
-    return;
-  }
-  
-  if (guess.toLowerCase() === 'skip') {
-    activeGames.delete(gameId);
-    await message.reply({ embeds: [createErrorEmbed(`Skipped! The animal was: **${gameData.answer.toUpperCase()}**`)] });
-    setTimeout(() => animalGameCommand(message, []), 2000);
-    return;
-  }
-  
-  gameData.attempts++;
-  
-  if (guess.toLowerCase() === gameData.answer.toLowerCase()) {
-    // Calculate XP
-    let xpEarned = 15;
-    if (gameData.attempts <= 2) xpEarned += 10; // Quick guess bonus
-    else if (gameData.attempts <= 3) xpEarned += 5;
-    
-    // Penalty for hints
-    xpEarned -= (gameData.hintsUsed * 3);
-    if (xpEarned < 5) xpEarned = 5; // Minimum XP
-    
-    const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'animal_game');
-    const timeTaken = Date.now() - gameData.startTime;
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Correct!', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**Animal:** ${gameData.answer.toUpperCase()}`)
-      .addFields(
-        { name: '🎯 Attempts', value: `${gameData.attempts}`, inline: true },
-        { name: '💡 Hints Used', value: `${gameData.hintsUsed}`, inline: true },
-        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true },
-        { name: '⏱️ Time', value: `${(timeTaken / 1000).toFixed(1)}s`, inline: true }
-      )
-      .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : `Total XP: ${xpResult.xp}` })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-    activeGames.delete(gameId);
-    
-    // Start new game after 5 seconds
-    setTimeout(() => animalGameCommand(message, []), 5000);
-  } else {
-    if (gameData.attempts >= gameData.maxAttempts) {
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.error)
-        .setAuthor({ name: '❌ Game Over', iconURL: message.author.displayAvatarURL() })
-        .setDescription(`The animal was: **${gameData.answer.toUpperCase()}**`)
-        .addFields(
-          { name: '📊 Stats', value: `Attempts: ${gameData.attempts}\nHints Used: ${gameData.hintsUsed}`, inline: true }
-        )
-        .setFooter({ text: 'Better luck next time!' })
-        .setTimestamp();
-      
-      await message.reply({ embeds: [embed] });
-      activeGames.delete(gameId);
-    } else {
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.warning)
-        .setAuthor({ name: '❌ Incorrect', iconURL: message.author.displayAvatarURL() })
-        .setDescription(`**Scrambled Word:** \`${gameData.scrambled.toUpperCase()}\``)
-        .addFields(
-          { name: '🎯 Attempts', value: `${gameData.attempts}/${gameData.maxAttempts}`, inline: true },
-          { name: '💡 Hint', value: 'Type `hint` for a clue', inline: true }
-        )
-        .setFooter({ text: `Keep trying! The answer is ${gameData.answer.length} letters long` })
-        .setTimestamp();
-      
-      const gameMessage = await message.channel.messages.fetch(gameData.messageId).catch(() => null);
-      if (gameMessage) {
-        await gameMessage.edit({ embeds: [embed] });
+  if (args.length > 0) {
+    const userId = extractId(args[0]);
+    if (userId) {
+      try {
+        targetUser = await client.users.fetch(userId);
+      } catch {
+        return message.reply({ embeds: [createErrorEmbed('User not found!')] });
       }
     }
   }
-}
-
-// 🎭 Hangman Game
-async function hangmanGameCommand(message, args) {
-  const gameId = `${message.channel.id}_${message.author.id}`;
   
-  if (activeGames.has(gameId)) {
-    return message.reply({ embeds: [createErrorEmbed('You already have an active game!')] });
-  }
-  
-  const categories = {
-    animals: ANIMALS,
-    countries: COUNTRIES.map(c => c.name.toLowerCase()),
-    fruits: ['apple', 'banana', 'orange', 'grape', 'mango', 'pineapple', 'watermelon', 'strawberry'],
-    sports: ['football', 'basketball', 'cricket', 'tennis', 'baseball', 'hockey', 'rugby', 'golf']
-  };
-  
-  const category = args[0]?.toLowerCase() || 'animals';
-  const wordList = categories[category] || categories.animals;
-  const word = wordList[Math.floor(Math.random() * wordList.length)].toLowerCase();
-  
-  const gameData = {
-    type: 'hangman',
-    word: word,
-    guessedLetters: [],
-    incorrectGuesses: 0,
-    maxIncorrect: 6,
-    category: category,
-    startTime: Date.now()
-  };
-  
-  activeGames.set(gameId, gameData);
-  
-  await displayHangman(message, gameId);
-}
-
-async function displayHangman(message, gameId) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
-  
-  const wordDisplay = gameData.word.split('').map(letter => 
-    gameData.guessedLetters.includes(letter) ? letter : '_'
-  ).join(' ');
-  
-  const incorrectLetters = gameData.guessedLetters.filter(l => !gameData.word.includes(l));
-  const hangmanStages = [
-    '⬜⬜⬜\n⬜      \n⬜      ',
-    '⬜⬜⬜\n⬜     😶\n⬜      ',
-    '⬜⬜⬜\n⬜     😶\n⬜     👕',
-    '⬜⬜⬜\n⬜     😶\n⬜     👕\n       👖',
-    '⬜⬜⬜\n⬜     😶\n⬜     👕\n       👖\n      👟👟',
-    '⬜⬜⬜\n⬜     😶\n⬜     👕\n       👖\n      👟👟\n      💀'
-  ];
-  
-  const hangman = hangmanStages[gameData.incorrectGuesses] || hangmanStages[0];
-  
-  const embed = new EmbedBuilder()
-    .setColor(gameData.incorrectGuesses >= 5 ? COLORS.error : COLORS.game)
-    .setAuthor({ name: '🎭 Hangman Game', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**Category:** ${gameData.category.toUpperCase()}`)
-    .addFields(
-      { name: '📝 Word', value: `\`${wordDisplay}\``, inline: false },
-      { name: '🚫 Incorrect Guesses', value: incorrectLetters.length > 0 ? incorrectLetters.join(', ') : 'None', inline: true },
-      { name: '💀 Lives', value: `${gameData.maxIncorrect - gameData.incorrectGuesses}/${gameData.maxIncorrect}`, inline: true }
-    )
-    .addFields({ name: '🎨 Hangman', value: `\`\`\`${hangman}\`\`\``, inline: false })
-    .setFooter({ text: `Guess a letter or type "quit" to end | Letters used: ${gameData.guessedLetters.length}` })
-    .setTimestamp();
-  
-  const gameMessage = await message.channel.send({ embeds: [embed] });
-  gameData.messageId = gameMessage.id;
-}
-
-async function handleHangmanGuess(message, gameId, guess) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
-  
-  if (guess.length !== 1 || !/[a-z]/i.test(guess)) {
-    await message.reply({ embeds: [createErrorEmbed('Please guess a single letter!')] });
-    return;
-  }
-  
-  const letter = guess.toLowerCase();
-  
-  if (gameData.guessedLetters.includes(letter)) {
-    await message.reply({ embeds: [createErrorEmbed(`You already guessed "${letter}"!`)] });
-    return;
-  }
-  
-  gameData.guessedLetters.push(letter);
-  
-  if (!gameData.word.includes(letter)) {
-    gameData.incorrectGuesses++;
-  }
-  
-  // Check win/lose conditions
-  const wordGuessed = gameData.word.split('').every(l => gameData.guessedLetters.includes(l));
-  const livesLeft = gameData.maxIncorrect - gameData.incorrectGuesses;
-  
-  if (wordGuessed) {
-    // Win!
-    let xpEarned = 20;
-    if (livesLeft >= 4) xpEarned += 10; // Bonus for many lives left
-    
-    const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'hangman_win');
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '🎉 You Win!', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**Word:** ${gameData.word.toUpperCase()}`)
-      .addFields(
-        { name: '🎯 Guesses', value: `${gameData.guessedLetters.length} letters`, inline: true },
-        { name: '💀 Lives Left', value: `${livesLeft}`, inline: true },
-        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true }
-      )
-      .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : 'Great job!' })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-    activeGames.delete(gameId);
-  } else if (livesLeft <= 0) {
-    // Lose
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.error)
-      .setAuthor({ name: '💀 Game Over', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**The word was:** ${gameData.word.toUpperCase()}`)
-      .addFields(
-        { name: '🎯 Guesses', value: `${gameData.guessedLetters.length} letters`, inline: true },
-        { name: '📝 Word', value: gameData.word.split('').map(l => gameData.guessedLetters.includes(l) ? l : '_').join(' '), inline: true }
-      )
-      .setFooter({ text: 'Better luck next time!' })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-    activeGames.delete(gameId);
-  } else {
-    // Continue game
-    await displayHangman(message, gameId);
-  }
-}
-
-// ==================== XP SYSTEM COMMANDS ====================
-
-async function rankCommand(message, args) {
-  const userId = args[0] ? extractId(args[0]) : message.author.id;
-  const user = await message.guild.members.fetch(userId).catch(() => null);
-  if (!user) return message.reply({ embeds: [createErrorEmbed('User not found')] });
-  
-  const xpData = dataStore.getUserXP(message.guild.id, user.id) || { xp: 0, level: 1 };
+  const xpData = dataStore.getUserXP(message.guild.id, targetUser.id);
   const levelData = getLevelFromXP(xpData.xp);
-  const progress = Math.floor((xpData.xp % XP_CONFIG.LEVEL_MULTIPLIER) / XP_CONFIG.LEVEL_MULTIPLIER * 100);
   
   // Get rank position
   const allXP = dataStore.getAllXP(message.guild.id);
-  const sortedUsers = Object.entries(allXP)
-    .sort((a, b) => (b[1].xp || 0) - (a[1].xp || 0));
+  const sortedUsers = Object.entries(allXP).sort((a, b) => b[1].xp - a[1].xp);
+  const rank = sortedUsers.findIndex(([id]) => id === targetUser.id) + 1;
   
-  const rank = sortedUsers.findIndex(([id]) => id === user.id) + 1;
+  // Progress bar
+  const progressBarLength = 15;
+  const progress = Math.floor((levelData.xpInCurrentLevel / calculateXPForLevel(levelData.level)) * progressBarLength);
+  const progressBar = '█'.repeat(progress) + '░'.repeat(progressBarLength - progress);
   
   const embed = new EmbedBuilder()
     .setColor(COLORS.xp)
-    .setAuthor({ name: `${user.user.tag}'s Rank`, iconURL: user.user.displayAvatarURL() })
-    .setThumbnail(user.user.displayAvatarURL())
+    .setAuthor({ name: `📊 RANK - ${targetUser.username}`, iconURL: targetUser.displayAvatarURL() })
+    .setThumbnail(targetUser.displayAvatarURL())
     .addFields(
-      { name: '📊 Rank', value: `#${rank}`, inline: true },
+      { name: '🏆 Rank', value: `#${rank || 'N/A'}`, inline: true },
       { name: '⭐ Level', value: `${levelData.level}`, inline: true },
-      { name: '🎯 XP', value: `${xpData.xp}`, inline: true },
-      { name: '📈 Progress', value: `${progress}% to Level ${levelData.level + 1}`, inline: false },
-      { name: '🎯 Next Level', value: `${levelData.nextLevelXP - xpData.xp} XP needed`, inline: false }
+      { name: '📊 XP', value: `${xpData.xp.toLocaleString()}`, inline: true },
+      { name: '📈 Progress', value: `${progressBar} ${levelData.progress}%`, inline: false },
+      { name: '🎯 Next Level', value: `${levelData.requiredForNext.toLocaleString()} XP needed`, inline: false }
     )
     .setFooter({ text: `Ranking: ${rank}/${sortedUsers.length} players` })
     .setTimestamp();
@@ -2410,28 +1107,51 @@ async function rankCommand(message, args) {
 }
 
 async function leaderboardCommand(message, args) {
+  const page = parseInt(args[0]) || 1;
+  const perPage = 10;
+  
   const allXP = dataStore.getAllXP(message.guild.id);
-  const sortedUsers = Object.entries(allXP)
-    .sort((a, b) => (b[1].xp || 0) - (a[1].xp || 0))
-    .slice(0, 10);
+  const sortedUsers = Object.entries(allXP).sort((a, b) => b[1].xp - a[1].xp);
+  
+  const totalPages = Math.ceil(sortedUsers.length / perPage);
+  const startIndex = (page - 1) * perPage;
+  const endIndex = startIndex + perPage;
+  const pageUsers = sortedUsers.slice(startIndex, endIndex);
+  
+  if (pageUsers.length === 0) {
+    return message.reply({ embeds: [createErrorEmbed('No users on this page!')] });
+  }
   
   let leaderboardText = '';
-  for (let i = 0; i < sortedUsers.length; i++) {
-    const [userId, data] = sortedUsers[i];
-    const user = await message.guild.members.fetch(userId).catch(() => ({ user: { tag: 'Unknown User' } }));
-    const levelData = getLevelFromXP(data.xp || 0);
-    
-    const medals = ['🥇', '🥈', '🥉'];
-    const medal = i < 3 ? medals[i] : `**${i + 1}.**`;
-    
-    leaderboardText += `${medal} **${user.user.tag}** - Level ${levelData.level} (${data.xp || 0} XP)\n`;
+  let rank = startIndex + 1;
+  
+  for (const [userId, data] of pageUsers) {
+    try {
+      const user = await client.users.fetch(userId).catch(() => ({ tag: 'Unknown User' }));
+      const levelData = getLevelFromXP(data.xp);
+      
+      const medals = ['🥇', '🥈', '🥉'];
+      const medal = rank <= 3 ? medals[rank - 1] : `**${rank}.**`;
+      
+      leaderboardText += `${medal} **${user.tag}**\n` +
+                        `   ⭐ Level ${levelData.level} • 📊 ${data.xp.toLocaleString()} XP\n`;
+      
+      rank++;
+    } catch {
+      continue;
+    }
   }
   
   const embed = new EmbedBuilder()
     .setColor(COLORS.xp)
-    .setAuthor({ name: '🏆 XP Leaderboard', iconURL: message.guild.iconURL() })
-    .setDescription(leaderboardText || 'No XP data yet! Start chatting to earn XP!')
-    .setFooter({ text: 'Earn XP by chatting and playing games!' })
+    .setAuthor({ name: '🏆 XP LEADERBOARD', iconURL: message.guild.iconURL() })
+    .setTitle(`Page ${page}/${totalPages}`)
+    .setDescription(leaderboardText || 'No XP data yet!')
+    .addFields(
+      { name: '📊 Total Players', value: `${sortedUsers.length}`, inline: true },
+      { name: '🎮 Top Player', value: sortedUsers.length > 0 ? `<@${sortedUsers[0][0]}>` : 'None', inline: true }
+    )
+    .setFooter({ text: `Use =leaderboard <page> to view more pages` })
     .setTimestamp();
   
   await message.reply({ embeds: [embed] });
@@ -2442,7 +1162,7 @@ async function dailyCommand(message) {
   const guildId = message.guild.id;
   const lastDaily = dataStore.getDailyCooldown(userId, guildId);
   const now = Date.now();
-  const cooldown = 24 * 60 * 60 * 1000; // 24 hours
+  const cooldown = 24 * 60 * 60 * 1000;
   
   if (now - lastDaily < cooldown) {
     const nextDaily = lastDaily + cooldown;
@@ -2450,8 +1170,11 @@ async function dailyCommand(message) {
     
     const embed = new EmbedBuilder()
       .setColor(COLORS.error)
-      .setAuthor({ name: '⏰ Daily Reward', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`You've already claimed your daily reward today!\n\n**Next daily in:** ${hoursLeft} hours`)
+      .setAuthor({ name: '⏰ DAILY REWARD', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**Already claimed today!**\n\n⏳ **Next daily in:** ${hoursLeft} hours`)
+      .addFields(
+        { name: '🕒 Last Claimed', value: `<t:${Math.floor(lastDaily / 1000)}:R>`, inline: true }
+      )
       .setFooter({ text: 'Come back tomorrow!' })
       .setTimestamp();
     
@@ -2464,1363 +1187,262 @@ async function dailyCommand(message) {
   
   const embed = new EmbedBuilder()
     .setColor(COLORS.xp)
-    .setAuthor({ name: '🎁 Daily Reward Claimed!', iconURL: message.author.displayAvatarURL() })
+    .setAuthor({ name: '🎁 DAILY REWARD CLAIMED!', iconURL: message.author.displayAvatarURL() })
     .setDescription(`**+${XP_CONFIG.DAILY_BONUS} XP** added to your account!`)
     .addFields(
-      { name: '📊 Total XP', value: `${xpResult.xp}`, inline: true },
+      { name: '💰 Reward', value: `${XP_CONFIG.DAILY_BONUS} XP`, inline: true },
+      { name: '📊 Total XP', value: `${xpResult.xp.toLocaleString()}`, inline: true },
       { name: '⭐ Current Level', value: `${xpResult.level}`, inline: true }
     )
-    .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : 'Come back tomorrow for more!' })
+    .setFooter({ 
+      text: xpResult.levelUp ? 
+        `🎉 LEVEL UP! Now Level ${xpResult.level}` : 
+        `Come back tomorrow for more!` 
+    })
     .setTimestamp();
   
   await message.reply({ embeds: [embed] });
 }
 
-async function xpInfoCommand(message, args) {
+async function xpInfoCommand(message) {
   const embed = new EmbedBuilder()
     .setColor(COLORS.xp)
-    .setAuthor({ name: '📊 XP System Information', iconURL: client.user.displayAvatarURL() })
+    .setAuthor({ name: '📊 XP SYSTEM', iconURL: client.user.displayAvatarURL() })
+    .setTitle('🌟 ADVANCED LEVELING SYSTEM')
     .addFields(
-      { name: '💬 Chatting', value: `${XP_CONFIG.PER_MESSAGE} XP per message`, inline: true },
-      { name: '🎮 Games', value: '10-50 XP per game', inline: true },
-      { name: '🎁 Daily Bonus', value: `${XP_CONFIG.DAILY_BONUS} XP`, inline: true },
-      { name: '📈 Level Up', value: `Every ${XP_CONFIG.LEVEL_MULTIPLIER} XP`, inline: false },
-      { name: '🎯 Commands', value: '`=rank` - Check your level\n`=leaderboard` - Server rankings\n`=daily` - Daily reward', inline: false }
+      { name: '💬 Messaging', value: `• ${XP_CONFIG.PER_MESSAGE} XP per message\n• Limited to prevent spam`, inline: false },
+      { name: '🎮 Game Rewards', value: `• Win: 10-25 XP\n• Participation: 1-5 XP\n• Bonus for speed & accuracy`, inline: false },
+      { name: '🎁 Daily Bonus', value: `• ${XP_CONFIG.DAILY_BONUS} XP every 24 hours`, inline: false },
+      { name: '📈 Level Formula', value: `• Gets harder each level!\n• Level XP = ${XP_CONFIG.LEVEL_MULTIPLIER} × Level^${XP_CONFIG.LEVEL_EXPONENT}`, inline: false },
+      { name: '🎯 Commands', value: `• \`${PREFIX}rank\` - Check your level\n• \`${PREFIX}leaderboard\` - Server rankings\n• \`${PREFIX}daily\` - Daily reward`, inline: false }
     )
-    .setFooter({ text: 'Keep chatting and playing games to level up!' })
+    .setDescription('**Leveling up is HARD!** Play games daily and chat actively to level up.')
+    .setFooter({ text: 'Max Level: 100 • Keep grinding!' })
     .setTimestamp();
   
   await message.reply({ embeds: [embed] });
 }
 
-// ==================== NEW MODERATION COMMANDS ====================
-
-async function lockChannelCommand(message, args) {
-  if (!isMod(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
-  }
-  
-  const channel = message.mentions.channels.first() || message.channel;
-  const reason = args.slice(1).join(' ') || 'No reason provided';
-  
-  try {
-    await channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: false,
-      AddReactions: false
-    });
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.warning)
-      .setAuthor({ name: '🔒 Channel Locked', iconURL: message.author.displayAvatarURL() })
-      .addFields(
-        { name: '📌 Channel', value: `${channel}`, inline: true },
-        { name: '👤 Moderator', value: `${message.author}`, inline: true },
-        { name: '📝 Reason', value: reason, inline: false }
-      )
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to lock channel. Check permissions.')] });
-  }
-}
-
-async function unlockChannelCommand(message, args) {
-  if (!isMod(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
-  }
-  
-  const channel = message.mentions.channels.first() || message.channel;
-  const reason = args.slice(1).join(' ') || 'No reason provided';
-  
-  try {
-    await channel.permissionOverwrites.edit(message.guild.roles.everyone, {
-      SendMessages: null,
-      AddReactions: null
-    });
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '🔓 Channel Unlocked', iconURL: message.author.displayAvatarURL() })
-      .addFields(
-        { name: '📌 Channel', value: `${channel}`, inline: true },
-        { name: '👤 Moderator', value: `${message.author}`, inline: true },
-        { name: '📝 Reason', value: reason, inline: false }
-      )
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to unlock channel.')] });
-  }
-}
-
-async function slowmodeCommand(message, args) {
-  if (!isMod(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
-  }
-  
-  const channel = message.mentions.channels.first() || message.channel;
-  const seconds = parseInt(args[0]);
-  
-  if (isNaN(seconds) || seconds < 0 || seconds > 21600) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '⏱️ Slowmode', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=slowmode <seconds> [channel]`')
-      .addFields(
-        { name: '📋 Examples', value: '```\n=slowmode 10\n=slowmode 60 #general\n=slowmode 0 (disable)```' },
-        { name: '⚠️ Limit', value: 'Max: 21600 seconds (6 hours)' }
-      )
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-  
-  try {
-    await channel.setRateLimitPerUser(seconds);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '⏱️ Slowmode Set', iconURL: message.author.displayAvatarURL() })
-      .addFields(
-        { name: '📌 Channel', value: `${channel}`, inline: true },
-        { name: '👤 Moderator', value: `${message.author}`, inline: true },
-        { name: '⏰ Delay', value: seconds === 0 ? 'Disabled' : `${seconds} seconds`, inline: true }
-      )
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to set slowmode. Check permissions.')] });
-  }
-}
-
-async function nukeChannelCommand(message, args) {
-  if (!isMod(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
-  }
-  
-  const channel = message.mentions.channels.first() || message.channel;
-  
-  const confirmEmbed = new EmbedBuilder()
-    .setColor(COLORS.error)
-    .setAuthor({ name: '⚠️ Nuke Channel', iconURL: client.user.displayAvatarURL() })
-    .setDescription(`Are you sure you want to NUKE **${channel.name}**?\n\nThis will:\n• Delete ALL messages\n• Clone the channel\n• Cannot be undone!\n\nType \`confirm\` to proceed or \`cancel\` to abort.`)
-    .setFooter({ text: 'This action is irreversible!' })
-    .setTimestamp();
-  
-  const confirmation = await message.reply({ embeds: [confirmEmbed] });
-  
-  const filter = m => m.author.id === message.author.id && ['confirm', 'cancel'].includes(m.content.toLowerCase());
-  
-  try {
-    const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
-    const response = collected.first().content.toLowerCase();
-    
-    if (response === 'cancel') {
-      await message.reply({ embeds: [createSuccessEmbed('Action Cancelled', 'Channel nuke cancelled.')] });
-      return;
-    }
-    
-    // Create clone
-    const clone = await channel.clone();
-    await clone.setPosition(channel.position);
-    
-    // Delete original
-    await channel.delete();
-    
-    const successEmbed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '💥 Channel Nuked', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**${channel.name}** has been nuked and cloned!\n\nNew channel: ${clone}`)
-      .setFooter({ text: `Nuked by ${message.author.tag}` })
-      .setTimestamp();
-    
-    await clone.send({ embeds: [successEmbed] });
-  } catch (error) {
-    await message.reply({ embeds: [createErrorEmbed('Nuke cancelled or timed out.')] });
-  }
-}
-
-async function snipeCommand(message) {
-  const channel = message.mentions.channels.first() || message.channel;
-  const messages = deletedMessages.get(channel.id) || [];
-  
-  if (messages.length === 0) {
-    return message.reply({ embeds: [createErrorEmbed('No deleted messages found in this channel.')] });
-  }
-  
-  const latest = messages[0];
-  const timeAgo = Math.floor((Date.now() - latest.timestamp) / 1000);
+// ==================== HELP COMMAND ====================
+async function helpCommand(message) {
+  const isAdminUser = isAdmin(message.member);
   
   const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
-    .setAuthor({ name: '📝 Snipe', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**Deleted Message from ${latest.author}**`)
+    .setColor(0x5865F2)
+    .setAuthor({ name: '⚡ WORLD OF GAMERS BOT', iconURL: client.user.displayAvatarURL() })
+    .setTitle('📚 COMMAND DIRECTORY')
+    .setDescription(`\`\`\`diff\n+ Prefix: ${PREFIX} | Type ${PREFIX}help for more info\`\`\``)
     .addFields(
-      { name: '💬 Content', value: latest.content || '*(No text content)*', inline: false },
-      { name: '🕐 Deleted', value: `<t:${Math.floor(latest.timestamp / 1000)}:R>`, inline: true },
-      { name: '👤 User ID', value: `\`${latest.authorId}\``, inline: true }
+      { 
+        name: '🎮 **GAMES** 🎮', 
+        value: '```\n' +
+               `${PREFIX}flag [easy|medium|hard|extreme]\n` +
+               `${PREFIX}animal [difficulty]\n` +
+               `${PREFIX}rps <rock|paper|scissors>\n` +
+               `${PREFIX}trivia [category]\n` +
+               `${PREFIX}number [max]\n` +
+               `${PREFIX}hangman [category]\n` +
+               '```', 
+        inline: true 
+      },
+      { 
+        name: '📊 **XP SYSTEM** 📊', 
+        value: '```\n' +
+               `${PREFIX}rank [@user]\n` +
+               `${PREFIX}leaderboard\n` +
+               `${PREFIX}daily\n` +
+               `${PREFIX}xpinfo\n` +
+               '```', 
+        inline: true 
+      },
+      { 
+        name: '👤 **USER** 👤', 
+        value: '```\n' +
+               `${PREFIX}ui [@user]\n` +
+               `${PREFIX}avatar [@user]\n` +
+               `${PREFIX}serverinfo\n` +
+               '```', 
+        inline: true 
+      }
     )
-    .setFooter({ text: `Showing latest of ${messages.length} deleted messages` })
-    .setTimestamp();
-  
-  if (latest.attachments.length > 0) {
-    embed.addFields({ name: '📎 Attachments', value: latest.attachments.join('\n'), inline: false });
-  }
-  
-  await message.reply({ embeds: [embed] });
-}
-// ==================== MISSING GAME FUNCTIONS ====================
-
-async function rpsGameCommand(message, args) {
-  const choices = ['rock', 'paper', 'scissors'];
-  const botChoice = choices[Math.floor(Math.random() * choices.length)];
-  const userChoice = args[0]?.toLowerCase();
-  
-  if (!userChoice || !choices.includes(userChoice)) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '✊ Rock Paper Scissors', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=rps <rock|paper|scissors>`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=rps rock\n=rps paper\n=rps scissors```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-  
-  let result = '';
-  let xpEarned = 0;
-  
-  if (userChoice === botChoice) {
-    result = '🤝 **Draw!**';
-    xpEarned = 5;
-  } else if (
-    (userChoice === 'rock' && botChoice === 'scissors') ||
-    (userChoice === 'paper' && botChoice === 'rock') ||
-    (userChoice === 'scissors' && botChoice === 'paper')
-  ) {
-    result = '🎉 **You Win!**';
-    xpEarned = 15;
-  } else {
-    result = '❌ **You Lose!**';
-    xpEarned = 2; // Participation XP
-  }
-  
-  const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'rps_game');
-  
-  const embed = new EmbedBuilder()
-    .setColor(result.includes('Win') ? COLORS.success : result.includes('Lose') ? COLORS.error : COLORS.warning)
-    .setAuthor({ name: '✊ Rock Paper Scissors', iconURL: message.author.displayAvatarURL() })
     .addFields(
-      { name: '👤 Your Choice', value: userChoice.toUpperCase(), inline: true },
-      { name: '🤖 Bot Choice', value: botChoice.toUpperCase(), inline: true },
-      { name: '🏆 Result', value: result, inline: true },
-      { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: false }
-    )
-    .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : `Total XP: ${xpResult.xp}` })
-    .setTimestamp();
-  
-  await message.reply({ embeds: [embed] });
-}
-
-async function numberGameCommand(message, args) {
-  const gameId = `${message.channel.id}_${message.author.id}`;
-  
-  if (activeGames.has(gameId)) {
-    return message.reply({ embeds: [createErrorEmbed('You already have an active game!')] });
-  }
-  
-  const maxNumber = parseInt(args[0]) || 100;
-  if (maxNumber < 10 || maxNumber > 1000) {
-    return message.reply({ embeds: [createErrorEmbed('Please choose a number between 10 and 1000.')] });
-  }
-  
-  const targetNumber = Math.floor(Math.random() * maxNumber) + 1;
-  const maxAttempts = Math.min(Math.floor(Math.log2(maxNumber)) + 5, 15);
-  
-  const gameData = {
-    type: 'number',
-    target: targetNumber,
-    maxNumber: maxNumber,
-    attempts: 0,
-    maxAttempts: maxAttempts,
-    startTime: Date.now(),
-    guesses: []
-  };
-  
-  activeGames.set(gameId, gameData);
-  
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.game)
-    .setAuthor({ name: '🔢 Number Guessing Game', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`Guess the number between **1** and **${maxNumber}**!`)
-    .addFields(
-      { name: '🎯 Max Attempts', value: `${maxAttempts}`, inline: true },
-      { name: '🏆 Scoring', value: '• Win: 20 XP\n• Bonus for fewer attempts', inline: true },
-      { name: '💡 Hint', value: 'Type `quit` to end the game', inline: true }
-    )
-    .setFooter({ text: 'Type your guess below!' })
-    .setTimestamp();
-  
-  const msg = await message.reply({ embeds: [embed] });
-  gameData.messageId = msg.id;
-}
-
-async function handleNumberGuess(message, gameId, guess) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
-  
-  if (isNaN(guess)) {
-    await message.reply({ embeds: [createErrorEmbed('Please enter a valid number!')] });
-    return;
-  }
-  
-  gameData.attempts++;
-  gameData.guesses.push(guess);
-  
-  if (guess === gameData.target) {
-    // Win!
-    let xpEarned = 20;
-    if (gameData.attempts <= 5) xpEarned += 15;
-    else if (gameData.attempts <= 10) xpEarned += 5;
-    
-    const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'number_game_win');
-    const timeTaken = Date.now() - gameData.startTime;
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '🎉 You Win!', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**Correct! The number was ${gameData.target}**`)
-      .addFields(
-        { name: '🎯 Attempts', value: `${gameData.attempts}`, inline: true },
-        { name: '⏱️ Time', value: `${(timeTaken / 1000).toFixed(1)}s`, inline: true },
-        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true }
-      )
-      .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : 'Great guessing!' })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-    activeGames.delete(gameId);
-  } else if (gameData.attempts >= gameData.maxAttempts) {
-    // Lose
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.error)
-      .setAuthor({ name: '❌ Game Over', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**The number was ${gameData.target}**`)
-      .addFields(
-        { name: '🎯 Attempts Used', value: `${gameData.attempts}`, inline: true },
-        { name: '📊 Your Guesses', value: gameData.guesses.join(', '), inline: true }
-      )
-      .setFooter({ text: 'Better luck next time!' })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-    activeGames.delete(gameId);
-  } else {
-    // Give hint
-    let hint = '';
-    if (guess < gameData.target) {
-      hint = '📈 **Too low!** Try a higher number.';
-    } else {
-      hint = '📉 **Too high!** Try a lower number.';
-    }
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.warning)
-      .setAuthor({ name: '🔢 Number Guessing', iconURL: message.author.displayAvatarURL() })
-      .setDescription(hint)
-      .addFields(
-        { name: '🎯 Attempt', value: `${gameData.attempts}/${gameData.maxAttempts}`, inline: true },
-        { name: '🎯 Range', value: `1 - ${gameData.maxNumber}`, inline: true },
-        { name: '💡 Previous Guesses', value: gameData.guesses.slice(-3).join(', ') || 'None', inline: true }
-      )
-      .setFooter({ text: `Keep guessing! You have ${gameData.maxAttempts - gameData.attempts} attempts left` })
-      .setTimestamp();
-    
-    const gameMessage = await message.channel.messages.fetch(gameData.messageId).catch(() => null);
-    if (gameMessage) {
-      await gameMessage.edit({ embeds: [embed] });
-    }
-  }
-}
-
-async function wordChainGameCommand(message, args) {
-  const gameId = `${message.channel.id}`; // Channel-wide game
-  
-  if (activeGames.has(gameId)) {
-    return message.reply({ embeds: [createErrorEmbed('A word chain game is already active in this channel!')] });
-  }
-  
-  const gameData = {
-    type: 'wordchain',
-    currentWord: '',
-    players: {},
-    usedWords: new Set(),
-    currentPlayer: message.author.id,
-    startTime: Date.now(),
-    lastWordTime: Date.now()
-  };
-  
-  // Start with a random word
-  const startingWords = ['apple', 'elephant', 'tiger', 'rabbit', 'orange', 'grapes', 'sun', 'moon', 'star', 'water'];
-  gameData.currentWord = startingWords[Math.floor(Math.random() * startingWords.length)];
-  gameData.usedWords.add(gameData.currentWord);
-  
-  activeGames.set(gameId, gameData);
-  
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.game)
-    .setAuthor({ name: '🔠 Word Chain Game', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**Word Chain Game Started!**\n\nFirst word: **${gameData.currentWord.toUpperCase()}**`)
-    .addFields(
-      { name: '🎯 How to Play', value: 'Say a word that starts with the **last letter** of the previous word!\nExample: "apple" → "elephant" → "tiger"', inline: false },
-      { name: '📋 Rules', value: '• No repeating words\n• English words only\n• Minimum 3 letters\n• Type `quit` to end game', inline: false },
-      { name: '🏆 Scoring', value: '• Valid word: 5 XP\n• Chain bonus: +1 XP per consecutive word\n• Game winner bonus: 50 XP', inline: false }
-    )
-    .setFooter({ text: `Started by ${message.author.tag} | Current player: ${message.author.tag}` })
-    .setTimestamp();
-  
-  await message.reply({ embeds: [embed] });
-}
-
-async function handleWordChainGuess(message, gameId, guess) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
-  
-  if (message.author.id !== gameData.currentPlayer) {
-    await message.reply({ embeds: [createErrorEmbed(`It's not your turn! Wait for ${message.guild.members.cache.get(gameData.currentPlayer)?.user.tag || 'current player'}.`)] });
-    return;
-  }
-  
-  guess = guess.toLowerCase().trim();
-  
-  if (guess === 'quit') {
-    // End game
-    const winnerId = Object.keys(gameData.players).reduce((a, b) => 
-      gameData.players[a] > gameData.players[b] ? a : b
+      { 
+        name: '🛠️ **UTILITY** 🛠️', 
+        value: '```\n' +
+               `${PREFIX}calc <expression>\n` +
+               `${PREFIX}weather <city>\n` +
+               `${PREFIX}translate <text> to <lang>\n` +
+               `${PREFIX}remind <time> <message>\n` +
+               '```', 
+        inline: true 
+      },
+      { 
+        name: '😄 **FUN** 😄', 
+        value: '```\n' +
+               `${PREFIX}joke\n` +
+               `${PREFIX}quote\n` +
+               `${PREFIX}coin\n` +
+               `${PREFIX}dice\n` +
+               `${PREFIX}8ball <question>\n` +
+               '```', 
+        inline: true 
+      }
     );
-    const winner = await message.guild.members.fetch(winnerId).catch(() => null);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.primary)
-      .setAuthor({ name: '🏁 Game Ended', iconURL: client.user.displayAvatarURL() })
-      .setDescription(`**Word Chain Game Ended!**`)
-      .addFields(
-        { name: '🏆 Winner', value: winner ? `${winner.user.tag}` : 'No winner', inline: true },
-        { name: '📊 Total Words', value: `${gameData.usedWords.size - 1}`, inline: true },
-        { name: '👥 Players', value: `${Object.keys(gameData.players).length}`, inline: true }
-      )
-      .setFooter({ text: 'Thanks for playing!' })
-      .setTimestamp();
-    
-    // Give winner bonus
-    if (winner) {
-      addXP(winner.id, message.guild.id, 50, 'wordchain_winner');
+  
+  if (isAdminUser) {
+    embed.addFields(
+      { 
+        name: '🛡️ **ADMIN** 🛡️', 
+        value: '```\n' +
+               `${PREFIX}clear <amount>\n` +
+               `${PREFIX}kick <@user> [reason]\n` +
+               `${PREFIX}ban <@user> [reason]\n` +
+               `${PREFIX}warn <@user> <reason>\n` +
+               '```', 
+        inline: true 
+      }
+    );
+  }
+  
+  embed.addFields(
+    { 
+      name: 'ℹ️ **INFO** ℹ️', 
+      value: '```\n' +
+             `${PREFIX}ping\n` +
+             `${PREFIX}botinfo\n` +
+             `${PREFIX}help\n` +
+             '```', 
+      inline: true 
     }
-    
-    await message.reply({ embeds: [embed] });
-    activeGames.delete(gameId);
-    return;
-  }
+  );
   
-  // Validate word
-  const lastLetter = gameData.currentWord.slice(-1);
-  
-  if (!guess.startsWith(lastLetter)) {
-    await message.reply({ embeds: [createErrorEmbed(`Your word must start with "${lastLetter.toUpperCase()}"!`)] });
-    return;
-  }
-  
-  if (gameData.usedWords.has(guess)) {
-    await message.reply({ embeds: [createErrorEmbed('That word has already been used!')] });
-    return;
-  }
-  
-  if (guess.length < 3) {
-    await message.reply({ embeds: [createErrorEmbed('Word must be at least 3 letters long!')] });
-    return;
-  }
-  
-  // Word is valid!
-  gameData.currentWord = guess;
-  gameData.usedWords.add(guess);
-  gameData.lastWordTime = Date.now();
-  
-  // Update player score
-  if (!gameData.players[message.author.id]) {
-    gameData.players[message.author.id] = 0;
-  }
-  gameData.players[message.author.id] += 5;
-  
-  // Chain bonus
-  const chainLength = Array.from(gameData.usedWords).length;
-  if (chainLength % 5 === 0) {
-    gameData.players[message.author.id] += 5;
-    await message.reply({ embeds: [new EmbedBuilder().setColor(COLORS.xp).setDescription(`🎉 **Chain Bonus!** +5 XP for reaching ${chainLength} words!`).setTimestamp()] });
-  }
-  
-  // Give XP
-  addXP(message.author.id, message.guild.id, 5, 'wordchain_word');
-  
-  // Find next player (round robin)
-  const playerIds = Object.keys(gameData.players);
-  const currentIndex = playerIds.indexOf(message.author.id);
-  const nextIndex = (currentIndex + 1) % playerIds.length;
-  gameData.currentPlayer = playerIds[nextIndex];
-  
-  const nextPlayer = await message.guild.members.fetch(gameData.currentPlayer).catch(() => null);
-  
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.success)
-    .setAuthor({ name: '✅ Word Accepted!', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**${message.author.tag}** said: **${guess.toUpperCase()}**`)
-    .addFields(
-      { name: '🎯 Next Letter', value: `"${guess.slice(-1).toUpperCase()}"`, inline: true },
-      { name: '📊 Total Words', value: `${gameData.usedWords.size}`, inline: true },
-      { name: '👤 Next Player', value: nextPlayer ? nextPlayer.user.tag : 'Unknown', inline: true },
-      { name: '⭐ XP Earned', value: '+5 XP', inline: false }
-    )
-    .setFooter({ text: `Your score: ${gameData.players[message.author.id] || 0} points` })
-    .setTimestamp();
+  const totalCommands = isAdminUser ? '45+' : '40+';
+  embed.setFooter({ 
+    text: `Total Commands: ${totalCommands} • Requested by ${message.author.tag}`, 
+    iconURL: message.author.displayAvatarURL() 
+  }).setTimestamp();
   
   await message.reply({ embeds: [embed] });
 }
-
-async function triviaGameCommand(message, args) {
-  const gameId = `${message.channel.id}_${message.author.id}`;
+// ==================== BASIC COMMANDS ====================
+async function pingCommand(message) {
+  const sent = await message.reply({ 
+    embeds: [new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setDescription('📡 **Measuring latency...**')
+      .setTimestamp()
+    ] 
+  });
   
-  const categories = [
-    { id: 9, name: 'General Knowledge' },
-    { id: 10, name: 'Books' },
-    { id: 11, name: 'Film' },
-    { id: 12, name: 'Music' },
-    { id: 15, name: 'Video Games' },
-    { id: 18, name: 'Computers' },
-    { id: 21, name: 'Sports' },
-    { id: 22, name: 'Geography' },
-    { id: 23, name: 'History' },
-    { id: 24, name: 'Politics' },
-    { id: 25, name: 'Art' },
-    { id: 27, name: 'Animals' }
-  ];
+  const latency = sent.createdTimestamp - message.createdTimestamp;
+  const apiLatency = Math.round(client.ws.ping);
   
-  try {
-    const category = categories.find(c => c.name.toLowerCase().includes(args[0]?.toLowerCase() || '')) || categories[0];
-    const response = await axios.get(`https://opentdb.com/api.php?amount=1&category=${category.id}&type=multiple`);
-    
-    if (!response.data.results || response.data.results.length === 0) {
-      return message.reply({ embeds: [createErrorEmbed('Could not fetch trivia question.')] });
-    }
-    
-    const questionData = response.data.results[0];
-    const answers = [...questionData.incorrect_answers, questionData.correct_answer];
-    
-    // Shuffle answers
-    for (let i = answers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [answers[i], answers[j]] = [answers[j], answers[i]];
-    }
-    
-    const correctIndex = answers.indexOf(questionData.correct_answer);
-    
-    const gameData = {
-      type: 'trivia',
-      question: questionData.question,
-      answers: answers,
-      correctIndex: correctIndex,
-      correctAnswer: questionData.correct_answer,
-      category: category.name,
-      difficulty: questionData.difficulty,
-      startTime: Date.now(),
-      answered: false
-    };
-    
-    activeGames.set(gameId, gameData);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.game)
-      .setAuthor({ name: '🧠 Trivia Challenge', iconURL: message.author.displayAvatarURL() })
-      .setTitle(`Category: ${category.name}`)
-      .setDescription(`**${questionData.question}**`)
-      .addFields(
-        { name: '📝 Options', value: answers.map((a, i) => `${String.fromCharCode(65 + i)}) ${a}`).join('\n'), inline: false },
-        { name: '🎯 Difficulty', value: questionData.difficulty.toUpperCase(), inline: true },
-        { name: '⏱️ Time Limit', value: '30 seconds', inline: true }
-      )
-      .setFooter({ text: 'Reply with the letter (A, B, C, D) or type "quit"' })
-      .setTimestamp();
-    
-    const msg = await message.reply({ embeds: [embed] });
-    gameData.messageId = msg.id;
-    gameData.timeout = setTimeout(() => endTriviaGame(message, gameId, false), 30000);
-  } catch (error) {
-    console.error('Trivia error:', error);
-    message.reply({ embeds: [createErrorEmbed('Failed to fetch trivia question.')] });
-  }
-}
-
-async function handleTriviaGuess(message, gameId, guess) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
-  
-  if (gameData.answered) return;
-  
-  const letter = guess.toUpperCase();
-  const letterIndex = letter.charCodeAt(0) - 65; // A=0, B=1, etc.
-  
-  if (letterIndex < 0 || letterIndex >= gameData.answers.length || letter.length !== 1) {
-    await message.reply({ embeds: [createErrorEmbed('Please reply with A, B, C, or D!')] });
-    return;
-  }
-  
-  gameData.answered = true;
-  clearTimeout(gameData.timeout);
-  
-  const isCorrect = letterIndex === gameData.correctIndex;
-  let xpEarned = 0;
-  
-  if (isCorrect) {
-    // Calculate XP based on difficulty and speed
-    xpEarned = 15;
-    if (gameData.difficulty === 'hard') xpEarned += 10;
-    else if (gameData.difficulty === 'medium') xpEarned += 5;
-    
-    const timeTaken = Date.now() - gameData.startTime;
-    if (timeTaken < 10000) xpEarned += 5; // Quick answer bonus
-    
-    const xpResult = addXP(message.author.id, message.guild.id, xpEarned, 'trivia_correct');
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Correct Answer!', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**${gameData.correctAnswer}**`)
-      .addFields(
-        { name: '🎯 Difficulty', value: gameData.difficulty.toUpperCase(), inline: true },
-        { name: '⏱️ Time', value: `${(timeTaken / 1000).toFixed(1)}s`, inline: true },
-        { name: '⭐ XP Earned', value: `${xpEarned} XP`, inline: true }
-      )
-      .setFooter({ text: xpResult.levelUp ? `🎉 Leveled up to ${xpResult.level}!` : 'Great job!' })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  } else {
-    xpEarned = 2; // Participation XP
-    addXP(message.author.id, message.guild.id, xpEarned, 'trivia_participation');
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.error)
-      .setAuthor({ name: '❌ Incorrect', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**Correct answer:** ${gameData.correctAnswer}`)
-      .addFields(
-        { name: '🤔 Your Answer', value: gameData.answers[letterIndex], inline: true },
-        { name: '⭐ Participation XP', value: '+2 XP', inline: true }
-      )
-      .setFooter({ text: 'Better luck next time!' })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  }
-  
-  activeGames.delete(gameId);
-}
-
-async function endTriviaGame(message, gameId, manualEnd = false) {
-  const gameData = activeGames.get(gameId);
-  if (!gameData) return;
-  
-  if (!gameData.answered) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.warning)
-      .setAuthor({ name: '⏰ Time\'s Up!', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**Correct answer:** ${gameData.correctAnswer}`)
-      .addFields(
-        { name: '📝 Question', value: gameData.question, inline: false }
-      )
-      .setFooter({ text: 'You ran out of time!' })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  }
-  
-  activeGames.delete(gameId);
-}
-
-// ==================== MISSING MODERATION FUNCTIONS ====================
-
-async function roleInfoCommand(message, args) {
-  const roleId = extractId(args[0]);
-  if (!roleId) return message.reply({ embeds: [createErrorEmbed('Please mention a role or provide role ID.')] });
-  
-  const role = message.guild.roles.cache.get(roleId);
-  if (!role) return message.reply({ embeds: [createErrorEmbed('Role not found.')] });
-  
-  const members = role.members.size;
-  const created = Math.floor(role.createdTimestamp / 1000);
-  const color = role.hexColor === '#000000' ? 'Default' : role.hexColor;
+  const getStatus = (ms) => {
+    if (ms < 100) return '🟢 Excellent';
+    if (ms < 200) return '🟡 Good';
+    if (ms < 500) return '🟠 Average';
+    return '🔴 Poor';
+  };
   
   const embed = new EmbedBuilder()
-    .setColor(role.color || COLORS.primary)
-    .setAuthor({ name: '🏷️ Role Information', iconURL: message.guild.iconURL() })
-    .setTitle(role.name)
+    .setColor(latency < 200 ? COLORS.success : latency < 500 ? COLORS.warning : COLORS.error)
+    .setAuthor({ name: '📡 PING', iconURL: client.user.displayAvatarURL() })
     .addFields(
-      { name: '🆔 Role ID', value: `\`${role.id}\``, inline: true },
-      { name: '👥 Members', value: `${members.toLocaleString()}`, inline: true },
-      { name: '🎨 Color', value: color, inline: true },
-      { name: '📅 Created', value: `<t:${created}:R>`, inline: true },
-      { name: '📍 Position', value: `${role.position}/${message.guild.roles.cache.size}`, inline: true },
-      { name: '🔐 Mentionable', value: role.mentionable ? 'Yes' : 'No', inline: true },
-      { name: '💼 Permissions', value: `\`\`\`${role.permissions.toArray().slice(0, 10).join(', ') || 'None'}${role.permissions.toArray().length > 10 ? '...' : ''}\`\`\``, inline: false }
+      { name: '🤖 Bot Latency', value: `${latency}ms \`${getStatus(latency)}\``, inline: true },
+      { name: '🌐 API Latency', value: `${apiLatency}ms \`${getStatus(apiLatency)}\``, inline: true },
+      { name: '⚡ Status', value: latency < 100 ? '✨ **Super Fast!**' : latency < 200 ? '🚀 **Fast**' : '👍 **Normal**', inline: true }
     )
     .setFooter({ text: `Requested by ${message.author.tag}` })
     .setTimestamp();
   
+  await sent.edit({ embeds: [embed] });
+}
+
+async function botInfoCommand(message) {
+  const uptime = client.uptime;
+  const days = Math.floor(uptime / 86400000);
+  const hours = Math.floor((uptime % 86400000) / 3600000);
+  const minutes = Math.floor((uptime % 3600000) / 60000);
+  const seconds = Math.floor((uptime % 60000) / 1000);
+  
+  const embed = new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setAuthor({ name: '🤖 BOT INFORMATION', iconURL: client.user.displayAvatarURL() })
+    .setThumbnail(client.user.displayAvatarURL())
+    .addFields(
+      { name: '🤖 Bot Name', value: `\`${client.user.tag}\``, inline: true },
+      { name: '🆔 Bot ID', value: `\`${client.user.id}\``, inline: true },
+      { name: '📅 Created', value: `<t:${Math.floor(client.user.createdTimestamp / 1000)}:R>`, inline: true },
+      { name: '🕒 Uptime', value: `${days}d ${hours}h ${minutes}m ${seconds}s`, inline: true },
+      { name: '🌐 Servers', value: `\`${client.guilds.cache.size}\``, inline: true },
+      { name: '👥 Users', value: `\`${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0).toLocaleString()}\``, inline: true },
+      { name: '⚡ Version', value: '`v3.0.0`', inline: true },
+      { name: '🎮 Games', value: '`6+ games`', inline: true },
+      { name: '📊 Commands', value: '`45+ commands`', inline: true }
+    )
+    .setDescription('**⚡ Advanced Discord Bot with XP System & Games**\n\n🌟 **Features:**\n• 🎮 Multiple Mini Games\n• 📊 Advanced XP System\n• 🛡️ Moderation Tools\n• 🛠️ Utility Commands\n• 😄 Fun Commands')
+    .setFooter({ text: 'Made for Discord Community' })
+    .setTimestamp();
+  
   await message.reply({ embeds: [embed] });
 }
 
-async function roleAllCommand(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
-  }
+async function userInfoCommand(message, args) {
+  let targetUser = message.author;
+  let targetMember = message.member;
   
-  const roleId = extractId(args[0]);
-  if (!roleId) return message.reply({ embeds: [createErrorEmbed('Please mention a role.')] });
-  
-  const role = message.guild.roles.cache.get(roleId);
-  if (!role) return message.reply({ embeds: [createErrorEmbed('Role not found.')] });
-  
-  const confirmEmbed = new EmbedBuilder()
-    .setColor(COLORS.warning)
-    .setAuthor({ name: '⚠️ Add Role to All Members', iconURL: client.user.displayAvatarURL() })
-    .setDescription(`Are you sure you want to add **${role.name}** to **ALL** members?\n\nThis will affect **${message.guild.memberCount.toLocaleString()}** members!\n\nType \`confirm\` to proceed or \`cancel\` to abort.`)
-    .setFooter({ text: 'This may take a while...' })
-    .setTimestamp();
-  
-  const confirmation = await message.reply({ embeds: [confirmEmbed] });
-  
-  const filter = m => m.author.id === message.author.id && ['confirm', 'cancel'].includes(m.content.toLowerCase());
-  
-  try {
-    const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
-    const response = collected.first().content.toLowerCase();
-    
-    if (response === 'cancel') {
-      await message.reply({ embeds: [createSuccessEmbed('Action Cancelled', 'Role assignment cancelled.')] });
-      return;
-    }
-    
-    const progress = await message.reply({ embeds: [new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setDescription('⏳ Adding role to all members...')
-      .setTimestamp()
-    ]});
-    
-    let success = 0;
-    let failed = 0;
-    const members = await message.guild.members.fetch();
-    
-    for (const [id, member] of members) {
+  if (args.length > 0) {
+    const userId = extractId(args[0]);
+    if (userId) {
       try {
-        if (!member.roles.cache.has(role.id)) {
-          await member.roles.add(role);
-          success++;
-        }
+        targetUser = await client.users.fetch(userId);
+        targetMember = await message.guild.members.fetch(userId);
       } catch {
-        failed++;
+        return message.reply({ embeds: [createErrorEmbed('User not found!')] });
       }
     }
-    
-    const resultEmbed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Role Assignment Complete', iconURL: message.author.displayAvatarURL() })
-      .addFields(
-        { name: '🏷️ Role', value: role.name, inline: true },
-        { name: '✅ Success', value: `${success} members`, inline: true },
-        { name: '❌ Failed', value: `${failed} members`, inline: true },
-        { name: '👥 Total Members', value: `${members.size}`, inline: false }
-      )
-      .setFooter({ text: `Action by ${message.author.tag}` })
-      .setTimestamp();
-    
-    await progress.edit({ embeds: [resultEmbed] });
-  } catch (error) {
-    await message.reply({ embeds: [createErrorEmbed('Action cancelled or timed out.')] });
-  }
-}
-
-async function stealEmojiCommand(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
   }
   
-  if (args.length < 1) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '😀 Steal Emoji', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=stealemoji <emoji> [name]`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=stealemoji 🎉 party_popper\n=stealemoji :custom_emoji: new_name```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
+  const xpData = dataStore.getUserXP(message.guild.id, targetUser.id);
+  const levelData = getLevelFromXP(xpData.xp);
   
-  const emojiMatch = args[0].match(/<?(a)?:?(\w{2,32}):(\d{17,19})>?/);
-  if (!emojiMatch) {
-    return message.reply({ embeds: [createErrorEmbed('Please provide a valid custom emoji.')] });
-  }
-  
-  const animated = emojiMatch[1] === 'a';
-  const emojiName = args[1] || emojiMatch[2];
-  const emojiId = emojiMatch[3];
-  const emojiUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${animated ? 'gif' : 'png'}`;
-  
-  try {
-    const emoji = await message.guild.emojis.create({
-      attachment: emojiUrl,
-      name: emojiName
-    });
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Emoji Stolen!', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`Added new emoji: ${emoji}`)
-      .addFields(
-        { name: '😀 Name', value: `\`${emoji.name}\``, inline: true },
-        { name: '🆔 ID', value: `\`${emoji.id}\``, inline: true },
-        { name: '🌀 Animated', value: emoji.animated ? 'Yes' : 'No', inline: true }
-      )
-      .setThumbnail(emojiUrl)
-      .setFooter({ text: `Added by ${message.author.tag}` })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  } catch (error) {
-    message.reply({ embeds: [createErrorEmbed('Failed to add emoji. Check bot permissions and emoji slots.')] });
-  }
-}
-
-async function advancedPollCommand(message, args) {
-  if (args.length < 2) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '📊 Advanced Poll', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=advancedpoll "<question>" "<option1>" "<option2>" [option3...]`')
-      .addFields({
-        name: '📋 Example',
-        value: '```=advancedpoll "Favorite Color?" "Red 🔴" "Blue 🔵" "Green 🟢" "Yellow 🟡"```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-  
-  // Parse arguments with quotes
-  const content = args.join(' ');
-  const matches = content.match(/"(.*?)"/g);
-  
-  if (!matches || matches.length < 3) {
-    return message.reply({ embeds: [createErrorEmbed('Please provide question and at least 2 options in quotes.')] });
-  }
-  
-  const question = matches[0].replace(/"/g, '');
-  const options = matches.slice(1).map(m => m.replace(/"/g, ''));
-  
-  if (options.length > 10) {
-    return message.reply({ embeds: [createErrorEmbed('Maximum 10 options allowed.')] });
-  }
-  
-  const numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-  const optionsText = options.map((opt, i) => `${numberEmojis[i]} ${opt}`).join('\n');
+  const badges = [];
+  if (targetMember.premiumSince) badges.push('🌟 Booster');
+  if (isAdmin(targetMember)) badges.push('🛡️ Admin');
+  else if (isMod(targetMember)) badges.push('⚔️ Mod');
+  if (targetMember.permissions.has(PermissionFlagsBits.ManageMessages)) badges.push('📝 Staff');
+  if (targetUser.bot) badges.push('🤖 Bot');
   
   const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: '📊 Poll', iconURL: message.author.displayAvatarURL() })
-    .setTitle(question)
-    .setDescription(optionsText)
-    .setFooter({ text: `Poll created by ${message.author.tag} • React to vote!` })
-    .setTimestamp();
-  
-  const pollMessage = await message.channel.send({ embeds: [embed] });
-  
-  // Add reactions
-  for (let i = 0; i < options.length; i++) {
-    await pollMessage.react(numberEmojis[i]);
-  }
-  
-  await message.delete().catch(() => {});
-}
-
-async function giveawayCommand(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
-  }
-  
-  if (args.length < 3) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '🎉 Giveaway', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=giveaway <duration> <winners> <prize>`')
-      .addFields({
-        name: '⏱️ Duration Format',
-        value: '`s` = seconds, `m` = minutes, `h` = hours, `d` = days'
-      }, {
-        name: '📋 Example',
-        value: '```=giveaway 1h 1 Discord Nitro\n=giveaway 24h 3 $50 Steam Gift Cards```'
-      })
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-  
-  const durationStr = args[0].toLowerCase();
-  const winners = parseInt(args[1]);
-  const prize = args.slice(2).join(' ');
-  
-  const timeUnits = { 's': 1000, 'm': 60000, 'h': 3600000, 'd': 86400000 };
-  const unitNames = { 's': 'second(s)', 'm': 'minute(s)', 'h': 'hour(s)', 'd': 'day(s)' };
-  
-  const unit = durationStr.slice(-1);
-  const value = parseInt(durationStr.slice(0, -1));
-  
-  if (!timeUnits[unit] || isNaN(value) || value <= 0) {
-    return message.reply({ embeds: [createErrorEmbed('Invalid duration format. Use: `10s`, `5m`, `2h`, `1d`')] });
-  }
-  
-  if (isNaN(winners) || winners < 1 || winners > 10) {
-    return message.reply({ embeds: [createErrorEmbed('Please specify 1-10 winners.')] });
-  }
-  
-  const duration = value * timeUnits[unit];
-  const endTime = Math.floor((Date.now() + duration) / 1000);
-  
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.xp)
-    .setAuthor({ name: '🎉 GIVEAWAY', iconURL: message.guild.iconURL() })
-    .setTitle(prize)
+    .setColor(targetMember.displayHexColor || COLORS.primary)
+    .setAuthor({ name: `👤 USER INFORMATION`, iconURL: targetUser.displayAvatarURL() })
+    .setThumbnail(targetUser.displayAvatarURL())
     .addFields(
-      { name: '🎁 Prize', value: prize, inline: true },
-      { name: '🏆 Winners', value: `${winners}`, inline: true },
-      { name: '⏱️ Ends', value: `<t:${endTime}:R>`, inline: true },
-      { name: '👤 Hosted by', value: `${message.author}`, inline: false }
-    )
-    .setFooter({ text: 'React with 🎉 to enter!' })
-    .setTimestamp();
-  
-  const giveawayMessage = await message.channel.send({ embeds: [embed] });
-  await giveawayMessage.react('🎉');
-  
-  // Store giveaway data
-  const giveawayId = `${message.channel.id}_${giveawayMessage.id}`;
-  
-  setTimeout(async () => {
-    const endedMessage = await message.channel.messages.fetch(giveawayMessage.id);
-    const reaction = endedMessage.reactions.cache.get('🎉');
-    
-    if (!reaction) {
-      const noEntries = new EmbedBuilder()
-        .setColor(COLORS.error)
-        .setAuthor({ name: '🎉 GIVEAWAY ENDED', iconURL: message.guild.iconURL() })
-        .setTitle(prize)
-        .setDescription('❌ **No valid entries!**')
-        .addFields(
-          { name: '🎁 Prize', value: prize, inline: true },
-          { name: '👤 Hosted by', value: `${message.author}`, inline: true }
-        )
-        .setFooter({ text: 'Giveaway cancelled due to no entries' })
-        .setTimestamp();
-      
-      await giveawayMessage.edit({ embeds: [noEntries] });
-      return;
-    }
-    
-    const users = await reaction.users.fetch();
-    const entrants = users.filter(u => !u.bot).map(u => u.id);
-    
-    if (entrants.length < winners) {
-      const notEnough = new EmbedBuilder()
-        .setColor(COLORS.warning)
-        .setAuthor({ name: '🎉 GIVEAWAY ENDED', iconURL: message.guild.iconURL() })
-        .setTitle(prize)
-        .setDescription(`**Not enough entrants!**\nNeed ${winners} winners but only ${entrants.length} entered.`)
-        .addFields(
-          { name: '🎁 Prize', value: prize, inline: true },
-          { name: '👤 Hosted by', value: `${message.author}`, inline: true }
-        )
-        .setFooter({ text: 'Giveaway cancelled' })
-        .setTimestamp();
-      
-      await giveawayMessage.edit({ embeds: [notEnough] });
-      return;
-    }
-    
-    // Select winners
-    const shuffled = entrants.sort(() => 0.5 - Math.random());
-    const winnerIds = shuffled.slice(0, winners);
-    const winnerMentions = winnerIds.map(id => `<@${id}>`).join(', ');
-    
-    const winnersEmbed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '🎉 GIVEAWAY ENDED', iconURL: message.guild.iconURL() })
-      .setTitle(`🎁 ${prize}`)
-      .setDescription(`**Congratulations ${winnerMentions}!**\nYou won **${prize}**!`)
-      .addFields(
-        { name: '🏆 Winners', value: winnerMentions, inline: false },
-        { name: '👤 Hosted by', value: `${message.author}`, inline: true },
-        { name: '🎫 Entries', value: `${entrants.length}`, inline: true }
-      )
-      .setFooter({ text: 'Congratulations to the winners! 🎉' })
-      .setTimestamp();
-    
-    await giveawayMessage.edit({ embeds: [winnersEmbed] });
-    await message.channel.send({ content: `🎉 **Congratulations ${winnerMentions}!** You won **${prize}**!` });
-  }, duration);
-  
-  await message.delete().catch(() => {});
-}
-
-async function ticketCommand(message, args) {
-  const categoryName = args[0] || 'Support';
-  
-  // Check if user already has open ticket
-  const existingTickets = dataStore.getUserTickets(message.guild.id, message.author.id);
-  const openTicket = existingTickets.find(t => t.status === 'open');
-  
-  if (openTicket) {
-    return message.reply({ embeds: [createErrorEmbed(`You already have an open ticket: <#${openTicket.channelId}>`)] });
-  }
-  
-  // Create ticket channel
-  const ticketNumber = Date.now().toString().slice(-6);
-  const channelName = `ticket-${message.author.username.toLowerCase()}-${ticketNumber}`;
-  
-  try {
-    const channel = await message.guild.channels.create({
-      name: channelName,
-      type: ChannelType.GuildText,
-      parent: message.channel.parentId,
-      permissionOverwrites: [
-        {
-          id: message.guild.id,
-          deny: [PermissionFlagsBits.ViewChannel]
-        },
-        {
-          id: message.author.id,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ReadMessageHistory
-          ]
-        },
-        {
-          id: client.user.id,
-          allow: [
-            PermissionFlagsBits.ViewChannel,
-            PermissionFlagsBits.SendMessages,
-            PermissionFlagsBits.ManageChannels,
-            PermissionFlagsBits.ManageMessages
-          ]
-        }
-      ]
-    });
-    
-    const ticketId = dataStore.createTicket(message.guild.id, message.author.id, channel.id);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.primary)
-      .setAuthor({ name: '🎫 Support Ticket', iconURL: message.author.displayAvatarURL() })
-      .setTitle(`Ticket #${ticketId.slice(-6)}`)
-      .setDescription(`Hello ${message.author}! Support will be with you shortly.\n\n**Please describe your issue:**`)
-      .addFields(
-        { name: '👤 Created by', value: `${message.author}`, inline: true },
-        { name: '📅 Created', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
-        { name: '💡 Category', value: categoryName, inline: true }
-      )
-      .setFooter({ text: 'Type =close to close this ticket' })
-      .setTimestamp();
-    
-    const closeButton = new ButtonBuilder()
-      .setCustomId('close_ticket')
-      .setLabel('Close Ticket')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🔒');
-    
-    const row = new ActionRowBuilder().addComponents(closeButton);
-    
-    await channel.send({ 
-      content: `${message.author} <@&${message.guild.roles.everyone.id}>`, 
-      embeds: [embed], 
-      components: [row] 
-    });
-    
-    const successEmbed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setDescription(`✅ Ticket created: ${channel}`)
-      .setTimestamp();
-    
-    await message.reply({ embeds: [successEmbed] });
-  } catch (error) {
-    console.error('Ticket error:', error);
-    message.reply({ embeds: [createErrorEmbed('Failed to create ticket. Check bot permissions.')] });
-  }
-}
-
-async function closeTicketCommand(message) {
-  // Check if this is a ticket channel
-  if (!message.channel.name.startsWith('ticket-')) {
-    return message.reply({ embeds: [createErrorEmbed('This is not a ticket channel.')] });
-  }
-  
-  // Find ticket data
-  const tickets = dataStore.getUserTickets(message.guild.id, message.author.id);
-  const ticket = tickets.find(t => t.channelId === message.channel.id);
-  
-  if (!ticket && !isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('Only ticket owner or admin can close tickets.')] });
-  }
-  
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.warning)
-    .setAuthor({ name: '🔒 Closing Ticket', iconURL: message.author.displayAvatarURL() })
-    .setDescription('Are you sure you want to close this ticket?\n\nType `confirm` to close or `cancel` to keep open.')
-    .setFooter({ text: 'Ticket will be deleted in 10 seconds after closing' })
-    .setTimestamp();
-  
-  const confirmation = await message.reply({ embeds: [embed] });
-  
-  const filter = m => m.author.id === message.author.id && ['confirm', 'cancel'].includes(m.content.toLowerCase());
-  
-  try {
-    const collected = await message.channel.awaitMessages({ filter, max: 1, time: 30000, errors: ['time'] });
-    const response = collected.first().content.toLowerCase();
-    
-    if (response === 'cancel') {
-      await message.reply({ embeds: [createSuccessEmbed('Action Cancelled', 'Ticket remains open.')] });
-      return;
-    }
-    
-    // Close ticket
-    if (ticket) {
-      dataStore.closeTicket(message.guild.id, ticket.id);
-    }
-    
-    const closedEmbed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Ticket Closed', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`Ticket closed by ${message.author}`)
-      .setFooter({ text: 'Channel will be deleted in 10 seconds' })
-      .setTimestamp();
-    
-    await message.channel.send({ embeds: [closedEmbed] });
-    
-    // Delete channel after delay
-    setTimeout(() => {
-      message.channel.delete().catch(console.error);
-    }, 10000);
-  } catch (error) {
-    await message.reply({ embeds: [createErrorEmbed('Action cancelled or timed out.')] });
-  }
-}
-
-async function autoModCommand(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
-  }
-  
-  if (args.length === 0) {
-    const current = dataStore.getAutoMod(message.guild.id);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '🛡️ Auto Moderation', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=automod <setting> <on/off>`')
-      .addFields(
-        { name: '⚙️ Settings', value: '`antilinks` - Block all links\n`antispam` - Prevent spam\n`capslock` - Block excessive caps\n`invites` - Block Discord invites', inline: false },
-        { name: '📋 Examples', value: '```=automod antilinks on\n=automod invites off\n=automod antispam on```', inline: false }
-      );
-    
-    if (Object.keys(current).length > 0) {
-      embed.addFields({
-        name: '📊 Current Settings',
-        value: Object.entries(current).map(([key, val]) => `• **${key}**: ${val ? '🟢 ON' : '🔴 OFF'}`).join('\n'),
-        inline: false
-      });
-    }
-    
-    embed.setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-  
-  const setting = args[0].toLowerCase();
-  const value = args[1]?.toLowerCase();
-  
-  const validSettings = ['antilinks', 'antispam', 'capslock', 'invites'];
-  
-  if (!validSettings.includes(setting)) {
-    return message.reply({ embeds: [createErrorEmbed(`Invalid setting. Use: ${validSettings.join(', ')}`)] });
-  }
-  
-  if (!value || !['on', 'off'].includes(value)) {
-    return message.reply({ embeds: [createErrorEmbed('Please specify `on` or `off`.')] });
-  }
-  
-  const enabled = value === 'on';
-  dataStore.setAutoMod(message.guild.id, { [setting]: enabled });
-  
-  const embed = new EmbedBuilder()
-    .setColor(enabled ? COLORS.success : COLORS.warning)
-    .setAuthor({ name: '✅ Auto Mod Updated', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**${setting}** has been turned **${value.toUpperCase()}**`)
-    .setFooter({ text: `Modified by ${message.author.tag}` })
-    .setTimestamp();
-  
-  await message.reply({ embeds: [embed] });
-}
-
-async function blacklistCommand(message, args) {
-  if (!isAdmin(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need Administrator permissions.')] });
-  }
-  
-  const subcommand = args[0]?.toLowerCase();
-  
-  if (!subcommand || !['add', 'remove', 'list', 'clear'].includes(subcommand)) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.info)
-      .setAuthor({ name: '🚫 Word Blacklist', iconURL: client.user.displayAvatarURL() })
-      .setDescription('**Usage:** `=blacklist <add|remove|list|clear> [word]`')
-      .addFields(
-        { name: '📋 Examples', value: '```=blacklist add badword\n=blacklist remove badword\n=blacklist list\n=blacklist clear```', inline: false }
-      )
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-  
-  if (subcommand === 'list') {
-    const blacklist = dataStore.getBlacklist(message.guild.id);
-    
-    if (blacklist.length === 0) {
-      return message.reply({ embeds: [createErrorEmbed('No words in blacklist.')] });
-    }
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.primary)
-      .setAuthor({ name: '🚫 Blacklisted Words', iconURL: message.guild.iconURL() })
-      .setDescription(blacklist.map(w => `• \`${w}\``).join('\n'))
-      .setFooter({ text: `Total: ${blacklist.length} words` })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-    return;
-  }
-  
-  if (subcommand === 'clear') {
-    dataStore.setAutoMod(message.guild.id, { blacklist: [] });
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Blacklist Cleared', iconURL: message.author.displayAvatarURL() })
-      .setDescription('All words have been removed from the blacklist.')
-      .setFooter({ text: `Cleared by ${message.author.tag}` })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-    return;
-  }
-  
-  const word = args[1];
-  if (!word) {
-    return message.reply({ embeds: [createErrorEmbed('Please specify a word.')] });
-  }
-  
-  if (subcommand === 'add') {
-    dataStore.addBlacklistWord(message.guild.id, word);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Word Blacklisted', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**\`${word}\`** has been added to the blacklist.`)
-      .setFooter({ text: `Added by ${message.author.tag}` })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  } else if (subcommand === 'remove') {
-    dataStore.removeBlacklistWord(message.guild.id, word);
-    
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.success)
-      .setAuthor({ name: '✅ Word Removed', iconURL: message.author.displayAvatarURL() })
-      .setDescription(`**\`${word}\`** has been removed from the blacklist.`)
-      .setFooter({ text: `Removed by ${message.author.tag}` })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
-  }
-}
-
-async function editLogsCommand(message, args) {
-  if (!isMod(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
-  }
-  
-  const channel = message.mentions.channels.first() || message.channel;
-  const logs = editedMessages.get(channel.id) || [];
-  
-  if (logs.length === 0) {
-    return message.reply({ embeds: [createErrorEmbed('No edited messages found in this channel.')] });
-  }
-  
-  const latest = logs[0];
-  const timeAgo = Math.floor((Date.now() - latest.timestamp) / 1000);
-  
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
-    .setAuthor({ name: '📝 Edit Logs', iconURL: message.author.displayAvatarURL() })
-    .setDescription(`**Edited Message from ${latest.author}**`)
-    .addFields(
-      { name: '📝 Before', value: latest.oldContent.length > 500 ? `${latest.oldContent.substring(0, 500)}...` : latest.oldContent || '*(Empty)*', inline: false },
-      { name: '📝 After', value: latest.newContent.length > 500 ? `${latest.newContent.substring(0, 500)}...` : latest.newContent || '*(Empty)*', inline: false },
-      { name: '🕐 Edited', value: `<t:${Math.floor(latest.timestamp / 1000)}:R>`, inline: true },
-      { name: '👤 User ID', value: `\`${latest.authorId}\``, inline: true }
-    )
-    .setFooter({ text: `Message ID: ${latest.messageId} | Showing latest of ${logs.length} edits` })
-    .setTimestamp();
-  
-  await message.reply({ embeds: [embed] });
-}
-
-async function userLogsCommand(message, args) {
-  if (!isMod(message.member)) {
-    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
-  }
-  
-  const userId = extractId(args[0]);
-  if (!userId) return message.reply({ embeds: [createErrorEmbed('Please mention a user or provide user ID.')] });
-  
-  const user = await message.guild.members.fetch(userId).catch(() => null);
-  if (!user) return message.reply({ embeds: [createErrorEmbed('User not found.')] });
-  
-  // Get warnings
-  const warnings = dataStore.getWarnings(message.guild.id, userId);
-  
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setAuthor({ name: `📋 User Logs - ${user.user.tag}`, iconURL: user.user.displayAvatarURL() })
-    .addFields(
-      { name: '👤 User', value: `${user.user.tag} (\`${user.id}\`)`, inline: false },
-      { name: '📅 Joined', value: `<t:${Math.floor(user.joinedTimestamp / 1000)}:R>`, inline: true },
-      { name: '📅 Created', value: `<t:${Math.floor(user.user.createdTimestamp / 1000)}:R>`, inline: true }
+      { name: '📝 Username', value: `\`${targetUser.tag}\``, inline: true },
+      { name: '🆔 User ID', value: `\`${targetUser.id}\``, inline: true },
+      { name: '📅 Account Created', value: `<t:${Math.floor(targetUser.createdTimestamp / 1000)}:R>`, inline: true },
+      { name: '📅 Joined Server', value: targetMember.joinedTimestamp ? `<t:${Math.floor(targetMember.joinedTimestamp / 1000)}:R>` : 'Unknown', inline: true },
+      { name: '⭐ Level', value: `**${levelData.level}**`, inline: true },
+      { name: '📊 XP', value: `**${xpData.xp}** / ${levelData.nextLevelXP}`, inline: true }
     );
   
-  if (warnings.length > 0) {
-    embed.addFields({
-      name: `⚠️ Warnings (${warnings.length})`,
-      value: warnings.map((w, i) => `${i + 1}. ${w.reason}`).join('\n').substring(0, 1000),
-      inline: false
+  if (badges.length > 0) {
+    embed.addFields({ name: '🎖️ Badges', value: badges.join(' • '), inline: false });
+  }
+  
+  // Add roles (limited to 10)
+  const roles = targetMember.roles.cache
+    .filter(role => role.id !== message.guild.id)
+    .sort((a, b) => b.position - a.position)
+    .map(role => role.toString())
+    .slice(0, 10);
+  
+  if (roles.length > 0) {
+    embed.addFields({ 
+      name: `🏷️ Roles [${targetMember.roles.cache.size - 1}]`, 
+      value: roles.join(' ') + (targetMember.roles.cache.size - 1 > 10 ? `\n...and ${targetMember.roles.cache.size - 11} more` : ''), 
+      inline: false 
     });
-  } else {
-    embed.addFields({ name: '⚠️ Warnings', value: '✅ No warnings', inline: false });
   }
   
   embed.setFooter({ text: `Requested by ${message.author.tag}` }).setTimestamp();
@@ -3828,114 +1450,586 @@ async function userLogsCommand(message, args) {
   await message.reply({ embeds: [embed] });
 }
 
-// ==================== FIX RANK COMMAND ERROR ====================
+async function avatarCommand(message, args) {
+  let targetUser = message.author;
+  
+  if (args.length > 0) {
+    const userId = extractId(args[0]);
+    if (userId) {
+      try {
+        targetUser = await client.users.fetch(userId);
+      } catch {
+        return message.reply({ embeds: [createErrorEmbed('User not found!')] });
+      }
+    }
+  }
+  
+  const avatarURL = targetUser.displayAvatarURL({ size: 4096, dynamic: true });
+  const formats = ['png', 'jpg', 'webp'];
+  if (targetUser.avatar?.startsWith('a_')) formats.push('gif');
+  
+  const links = formats.map(f => 
+    `[\`${f.toUpperCase()}\`](${targetUser.displayAvatarURL({ extension: f, size: 4096 })})`
+  ).join(' ');
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setAuthor({ name: `📸 ${targetUser.tag}'s Avatar`, iconURL: targetUser.displayAvatarURL() })
+    .setImage(avatarURL)
+    .setDescription(`**📥 Download:** ${links}`)
+    .setFooter({ text: `Requested by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
 
-// Yeh wala function fix karein:
-async function rankCommand(message, args) {
-  const userId = args[0] ? extractId(args[0]) : message.author.id;
+// ==================== UTILITY COMMANDS ====================
+async function calcCommand(message, args) {
+  if (!args.length) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '🧮 CALCULATOR', iconURL: client.user.displayAvatarURL() })
+      .setDescription(`**Usage:** \`${PREFIX}calc <expression>\``)
+      .addFields({
+        name: '📋 Examples',
+        value: '```\n' +
+               `${PREFIX}calc 5 * 10\n` +
+               `${PREFIX}calc (100 + 50) / 2\n` +
+               `${PREFIX}calc sqrt(144)\n` +
+               `${PREFIX}calc 2^8\n` +
+               '```'
+      })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  const expression = args.join(' ');
   
   try {
-    const user = await message.guild.members.fetch(userId).catch(() => null);
-    if (!user) return message.reply({ embeds: [createErrorEmbed('User not found')] });
-    
-    const xpData = dataStore.getUserXP(message.guild.id, user.id) || { xp: 0, level: 1 };
-    const levelData = getLevelFromXP(xpData.xp);
-    const progress = Math.floor((xpData.xp % XP_CONFIG.LEVEL_MULTIPLIER) / XP_CONFIG.LEVEL_MULTIPLIER * 100);
-    
-    // Get rank position
-    const allXP = dataStore.getAllXP(message.guild.id);
-    const sortedUsers = Object.entries(allXP)
-      .sort((a, b) => (b[1].xp || 0) - (a[1].xp || 0));
-    
-    const rank = sortedUsers.findIndex(([id]) => id === user.id) + 1;
-    if (rank === 0) {
-      // User not in XP data yet
-      const embed = new EmbedBuilder()
-        .setColor(COLORS.xp)
-        .setAuthor({ name: `${user.user.tag}'s Rank`, iconURL: user.user.displayAvatarURL() })
-        .setThumbnail(user.user.displayAvatarURL())
-        .addFields(
-          { name: '📊 Rank', value: 'Not ranked yet', inline: true },
-          { name: '⭐ Level', value: '1', inline: true },
-          { name: '🎯 XP', value: '0', inline: true },
-          { name: '💡 Tip', value: 'Start chatting to earn XP!', inline: false }
-        )
-        .setTimestamp();
-      
-      return message.reply({ embeds: [embed] });
-    }
+    const result = evaluate(expression);
     
     const embed = new EmbedBuilder()
-      .setColor(COLORS.xp)
-      .setAuthor({ name: `${user.user.tag}'s Rank`, iconURL: user.user.displayAvatarURL() })
-      .setThumbnail(user.user.displayAvatarURL())
+      .setColor(COLORS.success)
+      .setAuthor({ name: '🧮 CALCULATOR', iconURL: client.user.displayAvatarURL() })
       .addFields(
-        { name: '📊 Rank', value: `#${rank}`, inline: true },
-        { name: '⭐ Level', value: `${levelData.level}`, inline: true },
-        { name: '🎯 XP', value: `${xpData.xp}`, inline: true },
-        { name: '📈 Progress', value: `${progress}% to Level ${levelData.level + 1}`, inline: false },
-        { name: '🎯 Next Level', value: `${levelData.nextLevelXP - xpData.xp} XP needed`, inline: false }
+        { name: '📝 Expression', value: `\`\`\`${expression}\`\`\``, inline: false },
+        { name: '✨ Result', value: `\`\`\`${result}\`\`\``, inline: false }
       )
-      .setFooter({ text: `Ranking: ${rank}/${sortedUsers.length} players` })
+      .setFooter({ text: `Requested by ${message.author.tag}` })
       .setTimestamp();
     
     await message.reply({ embeds: [embed] });
   } catch (error) {
-    console.error('Rank command error:', error);
-    message.reply({ embeds: [createErrorEmbed('Failed to get rank information.')] });
+    message.reply({ embeds: [createErrorEmbed('Invalid expression. Please check your input.')] });
   }
 }
 
-// ==================== FIX READY EVENT DEPRECATION WARNING ====================
+async function weatherCommand(message, args) {
+  if (!args.length) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '🌤️ WEATHER', iconURL: client.user.displayAvatarURL() })
+      .setDescription(`**Usage:** \`${PREFIX}weather <city>\``)
+      .addFields({
+        name: '📋 Examples',
+        value: '```\n' +
+               `${PREFIX}weather Karachi\n` +
+               `${PREFIX}weather London\n` +
+               `${PREFIX}weather New York\n` +
+               '```'
+      })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
+  
+  const city = args.join(' ');
+  
+  try {
+    // Using wttr.in - 100% working, no API key needed
+    const response = await axios.get(`https://wttr.in/${encodeURIComponent(city)}?format=j1`, {
+      timeout: 10000
+    });
+    
+    const data = response.data;
+    const current = data.current_condition[0];
+    const area = data.nearest_area[0];
+    
+    const tempC = current.temp_C;
+    const feelsLike = current.FeelsLikeC;
+    const humidity = current.humidity;
+    const windSpeed = current.windspeedKmph;
+    const condition = current.weatherDesc[0].value;
+    
+    // Get emoji for condition
+    const emojiMap = {
+      'Sunny': '☀️', 'Clear': '☀️',
+      'Partly cloudy': '⛅', 'Cloudy': '☁️',
+      'Overcast': '☁️', 'Mist': '🌫️',
+      'Fog': '🌫️', 'Patchy rain': '🌦️',
+      'Light rain': '🌦️', 'Moderate rain': '🌧️',
+      'Heavy rain': '⛈️', 'Thunderstorm': '⛈️',
+      'Snow': '❄️', 'Sleet': '🌨️'
+    };
+    
+    let emoji = '🌡️';
+    for (const [key, value] of Object.entries(emojiMap)) {
+      if (condition.toLowerCase().includes(key.toLowerCase())) {
+        emoji = value;
+        break;
+      }
+    }
+    
+    // Color based on temperature
+    const getColor = (temp) => {
+      if (temp > 30) return 0xFF6B35; // Hot - Orange
+      if (temp > 20) return 0xFFD166; // Warm - Yellow
+      if (temp > 10) return 0x06D6A0; // Cool - Green
+      if (temp > 0) return 0x118AB2;  // Cold - Blue
+      return 0x073B4C; // Freezing - Dark Blue
+    };
+    
+    const embed = new EmbedBuilder()
+      .setColor(getColor(tempC))
+      .setAuthor({ name: `🌤️ WEATHER - ${area.areaName[0].value}, ${area.country[0].value}`, iconURL: 'https://cdn-icons-png.flaticon.com/512/1163/1163661.png' })
+      .setDescription(`**${emoji} ${condition}**`)
+      .addFields(
+        { name: '🌡️ Temperature', value: `**${tempC}°C**`, inline: true },
+        { name: '🤔 Feels Like', value: `**${feelsLike}°C**`, inline: true },
+        { name: '💧 Humidity', value: `**${humidity}%**`, inline: true },
+        { name: '💨 Wind Speed', value: `**${windSpeed} km/h**`, inline: true },
+        { name: '👁️ Visibility', value: `**${current.visibility} km**`, inline: true },
+        { name: '📊 Pressure', value: `**${current.pressure} hPa**`, inline: true }
+      )
+      .setFooter({ 
+        text: `Live Data • Requested by ${message.author.tag}`, 
+        iconURL: message.author.displayAvatarURL() 
+      })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+  } catch (error) {
+    console.error('Weather error:', error.message);
+    
+    // Fallback: Show simulated weather
+    const simulatedWeather = {
+      'karachi': { temp: 32, condition: 'Sunny', emoji: '☀️', humidity: 65, wind: 12 },
+      'lahore': { temp: 28, condition: 'Partly Cloudy', emoji: '⛅', humidity: 55, wind: 10 },
+      'islamabad': { temp: 24, condition: 'Clear', emoji: '🌤️', humidity: 60, wind: 8 },
+      'london': { temp: 15, condition: 'Cloudy', emoji: '☁️', humidity: 75, wind: 18 },
+      'new york': { temp: 22, condition: 'Sunny', emoji: '☀️', humidity: 60, wind: 12 },
+      'dubai': { temp: 38, condition: 'Very Hot', emoji: '🔥', humidity: 40, wind: 15 },
+      'tokyo': { temp: 20, condition: 'Clear', emoji: '🌤️', humidity: 65, wind: 10 }
+    };
+    
+    const cityLower = city.toLowerCase();
+    const weather = simulatedWeather[cityLower] || {
+      temp: 20 + Math.floor(Math.random() * 15),
+      condition: ['Sunny', 'Cloudy', 'Clear', 'Partly Cloudy'][Math.floor(Math.random() * 4)],
+      emoji: '🌡️',
+      humidity: 50 + Math.floor(Math.random() * 30),
+      wind: 5 + Math.floor(Math.random() * 15)
+    };
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: `🌤️ WEATHER - ${city}`, iconURL: 'https://cdn-icons-png.flaticon.com/512/1163/1163661.png' })
+      .setDescription(`**${weather.emoji} ${weather.condition}**`)
+      .addFields(
+        { name: '🌡️ Temperature', value: `**${weather.temp}°C**`, inline: true },
+        { name: '💧 Humidity', value: `**${weather.humidity}%**`, inline: true },
+        { name: '💨 Wind Speed', value: `**${weather.wind} km/h**`, inline: true }
+      )
+      .setFooter({ 
+        text: `Simulated Data • Requested by ${message.author.tag}`, 
+        iconURL: message.author.displayAvatarURL() 
+      })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  }
+}
 
-// Yeh change karein ready event handler mein:
-client.on('ready', async () => {
-  console.log(`✅ Bot is online! Logged in as ${client.user.tag}`);
-  console.log(`📊 Serving ${client.guilds.cache.size} servers`);
+async function translateCommand(message, args) {
+  const toIndex = args.findIndex(arg => arg.toLowerCase() === 'to');
   
-  // Set bot activity
-  client.user.setActivity({
-    name: `=help | ${client.guilds.cache.size} servers`,
-    type: ActivityType.Playing
-  });
+  if (toIndex === -1 || toIndex === 0 || toIndex === args.length - 1) {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setAuthor({ name: '🌐 TRANSLATOR', iconURL: client.user.displayAvatarURL() })
+      .setDescription(`**Usage:** \`${PREFIX}translate <text> to <language>\``)
+      .addFields({
+        name: '📋 Examples',
+        value: '```\n' +
+               `${PREFIX}translate hello to spanish\n` +
+               `${PREFIX}translate good morning to french\n` +
+               '```'
+      })
+      .setTimestamp();
+    return message.reply({ embeds: [embed] });
+  }
   
-  // Set status
-  client.user.setStatus('online');
-});
+  const text = args.slice(0, toIndex).join(' ');
+  const targetLang = args.slice(toIndex + 1).join(' ').toLowerCase();
+  
+  const langCodes = {
+    'english': 'en', 'spanish': 'es', 'french': 'fr', 'german': 'de',
+    'italian': 'it', 'portuguese': 'pt', 'russian': 'ru', 'japanese': 'ja',
+    'korean': 'ko', 'chinese': 'zh', 'arabic': 'ar', 'hindi': 'hi',
+    'urdu': 'ur', 'turkish': 'tr'
+  };
+  
+  const targetCode = langCodes[targetLang] || targetLang;
+  
+  try {
+    const response = await axios.get('https://api.mymemory.translated.net/get', {
+      params: { q: text, langpair: `en|${targetCode}` }
+    });
+    
+    const translatedText = response.data.responseData.translatedText;
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '🌐 TRANSLATION', iconURL: client.user.displayAvatarURL() })
+      .addFields(
+        { name: '🇬🇧 Original', value: `\`\`\`${text}\`\`\``, inline: false },
+        { name: `🌍 Translated (${targetLang})`, value: `\`\`\`${translatedText}\`\`\``, inline: false }
+      )
+      .setFooter({ text: `Requested by ${message.author.tag}` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+  } catch (error) {
+    message.reply({ embeds: [createErrorEmbed('Failed to translate. Please try again.')] });
+  }
+}
 
-// Ya fir ise replace karein:
-client.once('clientReady', async (readyClient) => {
-  console.log(`✅ Bot is online! Logged in as ${readyClient.user.tag}`);
-  console.log(`📊 Serving ${readyClient.guilds.cache.size} servers`);
+// ==================== FUN COMMANDS ====================
+async function jokeCommand(message) {
+  const jokes = [
+    "Why don't scientists trust atoms? Because they make up everything!",
+    "Why did the scarecrow win an award? Because he was outstanding in his field!",
+    "I told my wife she was drawing her eyebrows too high. She looked surprised.",
+    "Why don't eggs tell jokes? They'd crack each other up.",
+    "What do you call fake spaghetti? An impasta!",
+    "Why did the bicycle fall over? Because it was two-tired!",
+    "What do you call a bear with no teeth? A gummy bear!",
+    "I'm reading a book on anti-gravity. It's impossible to put down!",
+    "Why did the math book look so sad? Because it had too many problems."
+  ];
   
-  // Set bot activity
-  readyClient.user.setActivity({
-    name: `=help | ${readyClient.guilds.cache.size} servers`,
-    type: ActivityType.Playing
-  });
+  const joke = jokes[Math.floor(Math.random() * jokes.length)];
   
-  // Set status
-  readyClient.user.setStatus('online');
-});
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.fun)
+    .setAuthor({ name: '😂 RANDOM JOKE', iconURL: client.user.displayAvatarURL() })
+    .setDescription(`**${joke}**`)
+    .setFooter({ text: `Requested by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function quoteCommand(message) {
+  const quotes = [
+    { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+    { text: "Life is what happens to you while you're busy making other plans.", author: "John Lennon" },
+    { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+    { text: "It is during our darkest moments that we must focus to see the light.", author: "Aristotle" },
+    { text: "Whoever is happy will make others happy too.", author: "Anne Frank" },
+    { text: "You must be the change you wish to see in the world.", author: "Mahatma Gandhi" },
+    { text: "Spread love everywhere you go. Let no one ever come to you without leaving happier.", author: "Mother Teresa" }
+  ];
+  
+  const quote = quotes[Math.floor(Math.random() * quotes.length)];
+  
+  const embed = new EmbedBuilder()
+    .setColor(0x3498db)
+    .setAuthor({ name: '💭 INSPIRATIONAL QUOTE', iconURL: client.user.displayAvatarURL() })
+    .setDescription(`*"${quote.text}"*\n\n**— ${quote.author}**`)
+    .setFooter({ text: `Requested by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function coinFlipCommand(message) {
+  const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
+  const emoji = result === 'Heads' ? '👑' : '🦅';
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.fun)
+    .setAuthor({ name: '🪙 COIN FLIP', iconURL: message.author.displayAvatarURL() })
+    .setDescription(`${emoji} **${result}**`)
+    .setFooter({ text: `Flipped by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function diceRollCommand(message, args) {
+  const dice = args[0] || '1d6';
+  const [num, sides] = dice.split('d').map(Number);
+  
+  if (!num || !sides || num > 10 || sides > 100) {
+    return message.reply({ embeds: [createErrorEmbed('Usage: =dice [NdS]\nExample: =dice 2d6 (max 10d100)')] });
+  }
+  
+  let total = 0;
+  const rolls = [];
+  
+  for (let i = 0; i < num; i++) {
+    const roll = Math.floor(Math.random() * sides) + 1;
+    rolls.push(roll);
+    total += roll;
+  }
+  
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.fun)
+    .setAuthor({ name: '🎲 DICE ROLL', iconURL: message.author.displayAvatarURL() })
+    .setDescription(`**${dice}**`)
+    .addFields(
+      { name: '🎯 Rolls', value: rolls.join(', '), inline: true },
+      { name: '💰 Total', value: `${total}`, inline: true }
+    )
+    .setFooter({ text: `Rolled by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+async function eightBallCommand(message, args) {
+  if (!args.length) {
+    return message.reply({ embeds: [createErrorEmbed('Ask a question! Example: =8ball Will I win today?')] });
+  }
+  
+  const responses = [
+    '🎱 It is certain.',
+    '🎱 It is decidedly so.',
+    '🎱 Without a doubt.',
+    '🎱 Yes definitely.',
+    '🎱 You may rely on it.',
+    '🎱 As I see it, yes.',
+    '🎱 Most likely.',
+    '🎱 Outlook good.',
+    '🎱 Yes.',
+    '🎱 Signs point to yes.',
+    '🎱 Reply hazy, try again.',
+    '🎱 Ask again later.',
+    '🎱 Better not tell you now.',
+    '🎱 Cannot predict now.',
+    '🎱 Concentrate and ask again.',
+    '🎱 Don\'t count on it.',
+    '🎱 My reply is no.',
+    '🎱 My sources say no.',
+    '🎱 Outlook not so good.',
+    '🎱 Very doubtful.'
+  ];
+  
+  const answer = responses[Math.floor(Math.random() * responses.length)];
+  const question = args.join(' ');
+  
+  const embed = new EmbedBuilder()
+    .setColor(0x9B59B6)
+    .setAuthor({ name: '🎱 MAGIC 8 BALL', iconURL: message.author.displayAvatarURL() })
+    .addFields(
+      { name: '❓ Question', value: question, inline: false },
+      { name: '🎱 Answer', value: answer, inline: false }
+    )
+    .setFooter({ text: `Asked by ${message.author.tag}` })
+    .setTimestamp();
+  
+  await message.reply({ embeds: [embed] });
+}
+
+// ==================== MODERATION COMMANDS ====================
+async function clearCommand(message, args) {
+  if (!isMod(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
+  }
+  
+  const amount = parseInt(args[0]) || 10;
+  
+  if (isNaN(amount) || amount < 1 || amount > 100) {
+    return message.reply({ embeds: [createErrorEmbed('Please specify a number between 1 and 100.')] });
+  }
+  
+  try {
+    const deleted = await message.channel.bulkDelete(Math.min(amount, 100), true);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setAuthor({ name: '🗑️ MESSAGES CLEARED', iconURL: message.author.displayAvatarURL() })
+      .setDescription(`**${deleted.size}** messages deleted`)
+      .addFields(
+        { name: '📌 Channel', value: `${message.channel}`, inline: true },
+        { name: '👮 Moderator', value: `${message.author}`, inline: true }
+      )
+      .setFooter({ text: 'Messages deleted successfully' })
+      .setTimestamp();
+    
+    const reply = await message.channel.send({ embeds: [embed] });
+    
+    // Delete confirmation after 5 seconds
+    setTimeout(() => reply.delete().catch(() => {}), 5000);
+    
+  } catch (error) {
+    message.reply({ embeds: [createErrorEmbed('Cannot delete messages. Messages may be older than 14 days.')] });
+  }
+}
+
+async function kickCommand(message, args) {
+  if (!isMod(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
+  }
+  
+  if (args.length < 1) {
+    return message.reply({ embeds: [createErrorEmbed(`Usage: ${PREFIX}kick <@user> [reason]`)] });
+  }
+  
+  const userId = extractId(args[0]);
+  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention.')] });
+  
+  try {
+    const member = await message.guild.members.fetch(userId);
+    const reason = args.slice(1).join(' ') || 'No reason provided';
+    
+    // Check permissions
+    if (member.roles.highest.position >= message.member.roles.highest.position && !isAdmin(message.member)) {
+      return message.reply({ embeds: [createErrorEmbed('You cannot kick someone with higher or equal role.')] });
+    }
+    
+    await member.kick(reason);
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.warning)
+      .setAuthor({ name: '👢 USER KICKED', iconURL: member.user.displayAvatarURL() })
+      .addFields(
+        { name: '👤 User', value: `${member.user.tag}`, inline: true },
+        { name: '👮 Moderator', value: `${message.author}`, inline: true },
+        { name: '📝 Reason', value: reason, inline: false }
+      )
+      .setFooter({ text: `User ID: ${member.id}` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+  } catch (error) {
+    message.reply({ embeds: [createErrorEmbed('Cannot kick user. Check permissions.')] });
+  }
+}
+
+async function banCommand(message, args) {
+  if (!isMod(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
+  }
+  
+  if (args.length < 1) {
+    return message.reply({ embeds: [createErrorEmbed(`Usage: ${PREFIX}ban <@user> [reason]`)] });
+  }
+  
+  const userId = extractId(args[0]);
+  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention.')] });
+  
+  try {
+    const reason = args.slice(1).join(' ') || 'No reason provided';
+    
+    await message.guild.members.ban(userId, { reason });
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.error)
+      .setAuthor({ name: '🔨 USER BANNED', iconURL: client.user.displayAvatarURL() })
+      .addFields(
+        { name: '🆔 User ID', value: `\`${userId}\``, inline: true },
+        { name: '👮 Moderator', value: `${message.author}`, inline: true },
+        { name: '📝 Reason', value: reason, inline: false }
+      )
+      .setFooter({ text: 'User has been banned from the server' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+  } catch (error) {
+    message.reply({ embeds: [createErrorEmbed('Cannot ban user. Check permissions.')] });
+  }
+}
+
+async function warnCommand(message, args) {
+  if (!isMod(message.member)) {
+    return message.reply({ embeds: [createErrorEmbed('You need moderation permissions.')] });
+  }
+  
+  if (args.length < 2) {
+    return message.reply({ embeds: [createErrorEmbed(`Usage: ${PREFIX}warn <@user> <reason>`)] });
+  }
+  
+  const userId = extractId(args[0]);
+  if (!userId) return message.reply({ embeds: [createErrorEmbed('Invalid user mention.')] });
+  
+  try {
+    const member = await message.guild.members.fetch(userId);
+    const reason = args.slice(1).join(' ');
+    
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.warning)
+      .setAuthor({ name: '⚠️ USER WARNED', iconURL: member.user.displayAvatarURL() })
+      .addFields(
+        { name: '👤 User', value: `${member}`, inline: true },
+        { name: '👮 Moderator', value: `${message.author}`, inline: true },
+        { name: '📝 Reason', value: reason, inline: false }
+      )
+      .setFooter({ text: `User ID: ${member.id}` })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [embed] });
+    
+  } catch (error) {
+    message.reply({ embeds: [createErrorEmbed('User not found.')] });
+  }
+}
 
 // ==================== BOT STARTUP ====================
-
-client.once('ready', async () => {
+client.on('ready', () => {
   console.log(`✅ Bot is online! Logged in as ${client.user.tag}`);
   console.log(`📊 Serving ${client.guilds.cache.size} servers`);
+  console.log(`👥 Total users: ${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)}`);
+  console.log(`🎮 Games: Flag, Animal, Trivia, RPS, Number, Hangman`);
+  console.log(`📊 Systems: XP, Leaderboard, Daily Rewards`);
+  console.log(`⚡ Ready to use!`);
   
   // Set bot activity
-  client.user.setActivity({
-    name: `=help | ${client.guilds.cache.size} servers`,
-    type: ActivityType.Playing
+  client.user.setPresence({
+    activities: [{
+      name: `=help | ${client.guilds.cache.size} servers`,
+      type: ActivityType.Playing
+    }],
+    status: 'online'
   });
   
-  // Set status
-  client.user.setStatus('online');
+  // Auto-save data every 5 minutes
+  setInterval(() => {
+    dataStore.saveData();
+  }, 5 * 60 * 1000);
 });
 
-// Bot login
+// ==================== BOT LOGIN ====================
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
-client.login(BOT_TOKEN);
 
+if (!BOT_TOKEN || BOT_TOKEN === 'YOUR_BOT_TOKEN_HERE') {
+  console.error('❌ ERROR: Please set DISCORD_BOT_TOKEN environment variable!');
+  console.error('💡 Railway pe jao: Project → Variables → Add DISCORD_BOT_TOKEN');
+  process.exit(1);
+}
+
+client.login(BOT_TOKEN)
+  .then(() => {
+    console.log('🔑 Bot logged in successfully!');
+  })
+  .catch((error) => {
+    console.error('❌ Failed to login:', error.message);
+    console.error('💡 Check: 1) Bot Token  2) Bot Permissions');
+    process.exit(1);
+  });
+
+// Export for testing
 module.exports = { client };
