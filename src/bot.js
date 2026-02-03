@@ -2397,6 +2397,7 @@ async function handleWordChainAnswer(message) {
   if (reply) setTimeout(() => reply.delete().catch(() => {}), 5000);
 }
 // ==================== HELP COMMAND SYSTEM ====================
+// ==================== HELP COMMAND SYSTEM (FIXED) ====================
 async function helpCommand(message) {
   const member = message.member;
   const isUserAdmin = isAdmin(member);
@@ -2423,16 +2424,17 @@ async function helpCommand(message) {
       })
       .setTimestamp();
     
-    // Add all command categories
+    // Add all command categories with 2-line format
     for (const [categoryName, commands] of Object.entries(ALL_COMMANDS)) {
       let categoryValue = '';
       commands.forEach(cmd => {
-        categoryValue += `\`${PREFIX}${cmd.command}\` • ${cmd.description}\n`;
+        // 2-line format: Command on first line, description on second line
+        categoryValue += `\`${PREFIX}${cmd.command}\`\n${cmd.description}\n\n`;
       });
       
       if (categoryValue.length > 0) {
         embed.addFields({
-          name: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${getCategoryEmoji(categoryName)} ${categoryName.replace('_', ' & ')}`,
+          name: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${getCategoryEmoji(categoryName)} ${categoryName.replace('_', ' & ').toUpperCase()}`,
           value: categoryValue,
           inline: false
         });
@@ -2442,14 +2444,18 @@ async function helpCommand(message) {
     // Add admin note
     embed.addFields({
       name: '⚙️ ADMINISTRATIVE CONTROLS',
-      value: `• Server Settings: \`${PREFIX}settings\`\n• Bot Configuration: \`${PREFIX}config\`\n• Role Management: \`${PREFIX}roles\`\n• Channel Controls: \`${PREFIX}channels\`\n• User Management: \`${PREFIX}users\``,
+      value: `\`${PREFIX}settings\`\nServer Settings & Configuration\n\n` +
+             `\`${PREFIX}config\`\nBot Configuration & Setup\n\n` +
+             `\`${PREFIX}roles\`\nRole Management System\n\n` +
+             `\`${PREFIX}channels\`\nChannel Controls\n\n` +
+             `\`${PREFIX}users\`\nUser Management`,
       inline: false
     });
     
     await message.reply({ embeds: [embed] });
     
   } else if (isUserMod) {
-    // MOD HELP - Games + Basic Moderation
+    // MOD HELP - Games + Basic Moderation with 2-line format
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setAuthor({ 
@@ -2462,64 +2468,64 @@ async function helpCommand(message) {
         {
           name: '🎮 PUBLIC GAMES (Everyone can play)',
           value: 
-            `\`${PREFIX}flag [easy|medium|hard|extreme]\` • Guess country flags with 5 options\n` +
-            `\`${PREFIX}animal [difficulty]\` • Guess scrambled animal names\n` +
-            `\`${PREFIX}hangman [category]\` • Classic hangman with categories\n` +
-            `\`${PREFIX}trivia [category]\` • Trivia questions for everyone\n` +
-            `\`${PREFIX}number [max]\` • Guess the number game\n` +
-            `\`${PREFIX}wordchain\` • Word chain game\n` +
-            `\`${PREFIX}rps <choice>\` • Rock Paper Scissors vs bot`,
+            `\`${PREFIX}flag [easy|medium|hard|extreme]\`\nGuess country flags with 5 options\n\n` +
+            `\`${PREFIX}animal [difficulty]\`\nGuess scrambled animal names\n\n` +
+            `\`${PREFIX}hangman [category]\`\nClassic hangman with categories\n\n` +
+            `\`${PREFIX}trivia [category]\`\nTrivia questions for everyone\n\n` +
+            `\`${PREFIX}number [max]\`\nGuess the number game\n\n` +
+            `\`${PREFIX}wordchain\`\nWord chain game\n\n` +
+            `\`${PREFIX}rps <choice>\`\nRock Paper Scissors vs bot`,
           inline: false
         },
         {
           name: '📊 XP SYSTEM',
           value: 
-            `\`${PREFIX}rank [@user]\` • Check XP rank and level\n` +
-            `\`${PREFIX}leaderboard [page]\` • Server XP leaderboard\n` +
-            `\`${PREFIX}daily\` • Claim daily XP reward\n` +
-            `\`${PREFIX}xp\` • View XP system info\n` +
-            `\`${PREFIX}stats [@user]\` • User game statistics`,
+            `\`${PREFIX}rank [@user]\`\nCheck XP rank and level\n\n` +
+            `\`${PREFIX}leaderboard [page]\`\nServer XP leaderboard\n\n` +
+            `\`${PREFIX}daily\`\nClaim daily XP reward\n\n` +
+            `\`${PREFIX}xp\`\nView XP system info\n\n` +
+            `\`${PREFIX}stats [@user]\`\nUser game statistics`,
           inline: false
         },
         {
           name: '👤 USER COMMANDS',
           value: 
-            `\`${PREFIX}ui [@user]\` • User information\n` +
-            `\`${PREFIX}avatar [@user]\` • User avatar\n` +
-            `\`${PREFIX}serverinfo\` • Server information\n` +
-            `\`${PREFIX}botinfo\` • Bot information\n` +
-            `\`${PREFIX}ping\` • Check bot latency`,
+            `\`${PREFIX}ui [@user]\`\nUser information\n\n` +
+            `\`${PREFIX}avatar [@user]\`\nUser avatar\n\n` +
+            `\`${PREFIX}serverinfo\`\nServer information\n\n` +
+            `\`${PREFIX}botinfo\`\nBot information\n\n` +
+            `\`${PREFIX}ping\`\nCheck bot latency`,
           inline: false
         },
         {
           name: '⚔️ MODERATION TOOLS',
           value: 
-            `\`${PREFIX}warn @user <reason>\` • Warn a user\n` +
-            `\`${PREFIX}warnings [@user]\` • View user warnings\n` +
-            `\`${PREFIX}clear <amount>\` • Delete messages\n` +
-            `\`${PREFIX}kick @user [reason]\` • Kick user\n` +
-            `\`${PREFIX}mute @user [duration]\` • Mute user\n` +
-            `\`${PREFIX}unmute @user\` • Unmute user\n` +
-            `\`${PREFIX}slowmode <seconds>\` • Set slowmode`,
+            `\`${PREFIX}warn @user <reason>\`\nWarn a user\n\n` +
+            `\`${PREFIX}warnings [@user]\`\nView user warnings\n\n` +
+            `\`${PREFIX}clear <amount>\`\nDelete messages\n\n` +
+            `\`${PREFIX}kick @user [reason]\`\nKick user\n\n` +
+            `\`${PREFIX}mute @user [duration]\`\nMute user\n\n` +
+            `\`${PREFIX}unmute @user\`\nUnmute user\n\n` +
+            `\`${PREFIX}slowmode <seconds>\`\nSet slowmode`,
           inline: false
         },
         {
           name: '🛠️ UTILITIES',
           value: 
-            `\`${PREFIX}calc <expression>\` • Calculator\n` +
-            `\`${PREFIX}weather <city>\` • Weather check\n` +
-            `\`${PREFIX}translate <text> to <lang>\` • Translator\n` +
-            `\`${PREFIX}remind <time> <message>\` • Set reminder`,
+            `\`${PREFIX}calc <expression>\`\nCalculator\n\n` +
+            `\`${PREFIX}weather <city>\`\nWeather check\n\n` +
+            `\`${PREFIX}translate <text> to <lang>\`\nTranslator\n\n` +
+            `\`${PREFIX}remind <time> <message>\`\nSet reminder`,
           inline: false
         },
         {
           name: '😄 FUN COMMANDS',
           value: 
-            `\`${PREFIX}joke\` • Random joke\n` +
-            `\`${PREFIX}quote\` • Inspirational quote\n` +
-            `\`${PREFIX}coin\` • Coin flip\n` +
-            `\`${PREFIX}dice [NdS]\` • Dice roller\n` +
-            `\`${PREFIX}8ball <question>\` • Magic 8 ball`,
+            `\`${PREFIX}joke\`\nRandom joke\n\n` +
+            `\`${PREFIX}quote\`\nInspirational quote\n\n` +
+            `\`${PREFIX}coin\`\nCoin flip\n\n` +
+            `\`${PREFIX}dice [NdS]\`\nDice roller\n\n` +
+            `\`${PREFIX}8ball <question>\`\nMagic 8 ball`,
           inline: false
         }
       )
@@ -2532,7 +2538,7 @@ async function helpCommand(message) {
     await message.reply({ embeds: [embed] });
     
   } else {
-    // MEMBER HELP - Only games and basic commands
+    // MEMBER HELP - Only games and basic commands with 2-line format
     const embed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setAuthor({ 
@@ -2546,9 +2552,8 @@ async function helpCommand(message) {
         {
           name: '🎌 FLAG GUESSING GAME',
           value: 
-            `**Command:** \`${PREFIX}flag [difficulty]\`\n` +
+            `\`${PREFIX}flag [difficulty]\`\nGuess country flags with 5 options\n\n` +
             `**Difficulties:** easy, medium, hard, extreme\n` +
-            `**How to play:** Shows flag image with 5 options\n` +
             `**XP Reward:** 2 XP for first correct answer\n` +
             `**Example:** \`${PREFIX}flag hard\``,
           inline: false
@@ -2556,9 +2561,8 @@ async function helpCommand(message) {
         {
           name: '🐾 ANIMAL GUESSING GAME',
           value: 
-            `**Command:** \`${PREFIX}animal [difficulty]\`\n` +
+            `\`${PREFIX}animal [difficulty]\`\nUnscramble animal names\n\n` +
             `**Difficulties:** easy, medium, hard, extreme\n` +
-            `**How to play:** Unscramble animal names\n` +
             `**XP Reward:** 2 XP for first correct answer\n` +
             `**Example:** \`${PREFIX}animal medium\``,
           inline: false
@@ -2566,9 +2570,8 @@ async function helpCommand(message) {
         {
           name: '🎯 HANGMAN GAME',
           value: 
-            `**Command:** \`${PREFIX}hangman [category]\`\n` +
+            `\`${PREFIX}hangman [category]\`\nGuess letters to complete the word\n\n` +
             `**Categories:** animals, fruits, countries, movies, sports, colors\n` +
-            `**How to play:** Guess letters to complete the word\n` +
             `**XP Reward:** 3 XP for winner\n` +
             `**Example:** \`${PREFIX}hangman movies\``,
           inline: false
@@ -2576,9 +2579,8 @@ async function helpCommand(message) {
         {
           name: '🧠 TRIVIA GAME',
           value: 
-            `**Command:** \`${PREFIX}trivia [category]\`\n` +
+            `\`${PREFIX}trivia [category]\`\nAnswer multiple choice questions\n\n` +
             `**Categories:** general, science, sports\n` +
-            `**How to play:** Answer multiple choice questions\n` +
             `**XP Reward:** Up to 6 XP for top players\n` +
             `**Example:** \`${PREFIX}trivia science\``,
           inline: false
@@ -2586,9 +2588,8 @@ async function helpCommand(message) {
         {
           name: '🔢 NUMBER GUESSING',
           value: 
-            `**Command:** \`${PREFIX}number [max]\`\n` +
+            `\`${PREFIX}number [max]\`\nGuess the secret number\n\n` +
             `**Range:** 1 to specified max (default: 100)\n` +
-            `**How to play:** Guess the secret number\n` +
             `**XP Reward:** 3-5 XP for closest guess\n` +
             `**Example:** \`${PREFIX}number 1000\``,
           inline: false
@@ -2596,8 +2597,7 @@ async function helpCommand(message) {
         {
           name: '🔤 WORD CHAIN',
           value: 
-            `**Command:** \`${PREFIX}wordchain\`\n` +
-            `**How to play:** Say words starting with last letter of previous word\n` +
+            `\`${PREFIX}wordchain\`\nSay words starting with last letter\n\n` +
             `**XP Reward:** 0.1 XP per valid word\n` +
             `**Example:** \`${PREFIX}wordchain\``,
           inline: false
@@ -2605,9 +2605,8 @@ async function helpCommand(message) {
         {
           name: '✊ ROCK PAPER SCISSORS',
           value: 
-            `**Command:** \`${PREFIX}rps <choice>\`\n` +
+            `\`${PREFIX}rps <choice>\`\n1v1 against the bot\n\n` +
             `**Choices:** rock, paper, scissors\n` +
-            `**How to play:** 1v1 against the bot\n` +
             `**XP Reward:** 1 XP for win, 0.5 XP for draw\n` +
             `**Example:** \`${PREFIX}rps rock\``,
           inline: false
@@ -2615,39 +2614,39 @@ async function helpCommand(message) {
         {
           name: '📊 XP SYSTEM COMMANDS',
           value: 
-            `\`${PREFIX}rank [@user]\` • Check your level and XP\n` +
-            `\`${PREFIX}leaderboard [page]\` • Server rankings\n` +
-            `\`${PREFIX}daily\` • Claim daily reward (5 XP)\n` +
-            `\`${PREFIX}xp\` • View XP system information\n` +
-            `\`${PREFIX}stats [@user]\` • View game statistics`,
+            `\`${PREFIX}rank [@user]\`\nCheck your level and XP\n\n` +
+            `\`${PREFIX}leaderboard [page]\`\nServer rankings\n\n` +
+            `\`${PREFIX}daily\`\nClaim daily reward (5 XP)\n\n` +
+            `\`${PREFIX}xp\`\nView XP system information\n\n` +
+            `\`${PREFIX}stats [@user]\`\nView game statistics`,
           inline: false
         },
         {
           name: '👤 USER COMMANDS',
           value: 
-            `\`${PREFIX}ui [@user]\` • User information\n` +
-            `\`${PREFIX}avatar [@user]\` • User avatar\n` +
-            `\`${PREFIX}serverinfo\` • Server information\n` +
-            `\`${PREFIX}botinfo\` • Bot information\n` +
-            `\`${PREFIX}ping\` • Check bot latency`,
+            `\`${PREFIX}ui [@user]\`\nUser information\n\n` +
+            `\`${PREFIX}avatar [@user]\`\nUser avatar\n\n` +
+            `\`${PREFIX}serverinfo\`\nServer information\n\n` +
+            `\`${PREFIX}botinfo\`\nBot information\n\n` +
+            `\`${PREFIX}ping\`\nCheck bot latency`,
           inline: false
         },
         {
           name: '🛠️ UTILITY COMMANDS',
           value: 
-            `\`${PREFIX}calc <math>\` • Calculator\n` +
-            `\`${PREFIX}weather <city>\` • Weather\n` +
-            `\`${PREFIX}translate <text> to <lang>\` • Translator`,
+            `\`${PREFIX}calc <math>\`\nCalculator\n\n` +
+            `\`${PREFIX}weather <city>\`\nWeather\n\n` +
+            `\`${PREFIX}translate <text> to <lang>\`\nTranslator`,
           inline: false
         },
         {
           name: '😄 FUN COMMANDS',
           value: 
-            `\`${PREFIX}joke\` • Random joke\n` +
-            `\`${PREFIX}quote\` • Inspirational quote\n` +
-            `\`${PREFIX}coin\` • Coin flip\n` +
-            `\`${PREFIX}dice\` • Dice roller\n` +
-            `\`${PREFIX}8ball <question>\` • Magic 8 ball`,
+            `\`${PREFIX}joke\`\nRandom joke\n\n` +
+            `\`${PREFIX}quote\`\nInspirational quote\n\n` +
+            `\`${PREFIX}coin\`\nCoin flip\n\n` +
+            `\`${PREFIX}dice\`\nDice roller\n\n` +
+            `\`${PREFIX}8ball <question>\`\nMagic 8 ball`,
           inline: false
         }
       )
@@ -2660,37 +2659,6 @@ async function helpCommand(message) {
     await message.reply({ embeds: [embed] });
   }
 }
-
-function getCategoryEmoji(category) {
-  const emojiMap = {
-    'CRYPTOCURRENCY': '🔐',
-    'UTILITIES': '⚡',
-    'USER_SERVER': '👤',
-    'INFO_STATS': '📈',
-    'ENTERTAINMENT': '🎨',
-    'VOUCH': '🔔',
-    'MODERATION': '⚔️',
-    'ROLE_MANAGEMENT': '🏆',
-    'VERIFICATION': '✨',
-    'GUESSING_GAMES': '🎯',
-    'XP_SYSTEM': '📊',
-    'CHANNEL_CONTROLS': '🔧',
-    'TICKET_SYSTEM': '🎫',
-    'AUTO_MODERATION': '🛡️'
-  };
-  return emojiMap[category] || '📝';
-}
-
-function getModCommandCount() {
-  let count = 0;
-  const modCategories = ['GUESSING_GAMES', 'XP_SYSTEM', 'USER_SERVER', 'UTILITIES', 'ENTERTAINMENT'];
-  modCategories.forEach(cat => {
-    count += ALL_COMMANDS[cat]?.length || 0;
-  });
-  count += 7; // Basic mod commands
-  return count;
-}
-
 // ==================== XP COMMANDS ====================
 async function rankCommand(message, args) {
   let targetUser = message.author;
