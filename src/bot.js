@@ -2400,47 +2400,303 @@ async function handleWordChainAnswer(message) {
 // ==================== HELP COMMAND SYSTEM (FIXED) ====================
 async function helpCommand(message) {
   try {
-    const prefix = '='; // Hardcode since you said it's =
+    const member = message.member;
+    const isUserAdmin = isAdmin(member);
+    const isUserMod = isMod(member);
+    const isUserHighRole = isHighRole(member);
     
-    const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
-      .setTitle('⚡ WORLD OF GAMERS BOT - HELP')
-      .setDescription(`**Prefix:** \`${prefix}\``)
-      .addFields(
+    const prefix = '=';
+    
+    if (isUserAdmin || isUserHighRole) {
+      // ADMIN HELP - All commands with 2-line format
+      const embed = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setAuthor({ 
+          name: '⚡ WORLD OF GAMERS BOT - ADMIN CONTROL PANEL', 
+          iconURL: client.user.displayAvatarURL({ size: 256 }) 
+        })
+        .setTitle('📚 COMPLETE COMMAND DIRECTORY')
+        .setDescription(`\`\`\`diff\n+ Prefix: ${prefix} | Slash: /\n+ Role: ADMINISTRATOR/HIGH ROLE\`\`\``)
+        .setThumbnail(message.guild.iconURL())
+        .setFooter({ 
+          text: `Admin View • Requested by ${message.author.tag}`, 
+          iconURL: message.author.displayAvatarURL() 
+        })
+        .setTimestamp();
+      
+      // ADMIN CATEGORIES
+      embed.addFields(
         {
-          name: '🎮 GAMES',
+          name: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🎮 GAMES & FUN',
           value: 
-            `\`${prefix}flag\` - Guess country flags\n` +
-            `\`${prefix}animal\` - Animal guessing game\n` +
-            `\`${prefix}hangman\` - Hangman game\n` +
-            `\`${prefix}trivia\` - Trivia questions\n` +
-            `\`${prefix}number\` - Number guessing\n` +
-            `\`${prefix}wordchain\` - Word chain game\n` +
-            `\`${prefix}rps\` - Rock Paper Scissors`
+            `\`${prefix}flag [difficulty]\`\nGuess country flags with 5 options\n\n` +
+            `\`${prefix}animal [difficulty]\`\nGuess scrambled animal names\n\n` +
+            `\`${prefix}hangman [category]\`\nClassic hangman with categories\n\n` +
+            `\`${prefix}trivia [category]\`\nTrivia questions for everyone\n\n` +
+            `\`${prefix}number [max]\`\nGuess the number game\n\n` +
+            `\`${prefix}wordchain\`\nWord chain game\n\n` +
+            `\`${prefix}rps <choice>\`\nRock Paper Scissors vs bot\n\n` +
+            `\`${prefix}joke\`\nRandom joke\n\n` +
+            `\`${prefix}quote\`\nInspirational quote\n\n` +
+            `\`${prefix}coin\`\nCoin flip\n\n` +
+            `\`${prefix}dice [NdS]\`\nDice roller\n\n` +
+            `\`${prefix}8ball <question>\`\nMagic 8 ball`,
+          inline: false
         },
         {
-          name: '📊 XP SYSTEM',
+          name: '📊 XP & STATISTICS',
           value: 
-            `\`${prefix}rank\` - Check your level\n` +
-            `\`${prefix}leaderboard\` - Server rankings\n` +
-            `\`${prefix}daily\` - Daily reward`
+            `\`${prefix}rank [@user]\`\nCheck XP rank and level\n\n` +
+            `\`${prefix}leaderboard [page]\`\nServer XP leaderboard\n\n` +
+            `\`${prefix}daily\`\nClaim daily XP reward\n\n` +
+            `\`${prefix}xp\`\nView XP system info\n\n` +
+            `\`${prefix}stats [@user]\`\nUser game statistics`,
+          inline: false
         },
         {
-          name: '👤 UTILITY',
+          name: '👤 USER & INFO',
           value: 
-            `\`${prefix}ui\` - User info\n` +
-            `\`${prefix}avatar\` - Get avatar\n` +
-            `\`${prefix}serverinfo\` - Server info\n` +
-            `\`${prefix}ping\` - Check latency`
+            `\`${prefix}ui [@user]\`\nUser information\n\n` +
+            `\`${prefix}avatar [@user]\`\nUser avatar\n\n` +
+            `\`${prefix}serverinfo\`\nServer information\n\n` +
+            `\`${prefix}botinfo\`\nBot information\n\n` +
+            `\`${prefix}ping\`\nCheck bot latency`,
+          inline: false
+        },
+        {
+          name: '⚙️ ADMINISTRATIVE CONTROLS',
+          value: 
+            `\`${prefix}settings\`\nServer Settings & Configuration\n\n` +
+            `\`${prefix}config\`\nBot Configuration & Setup\n\n` +
+            `\`${prefix}roles\`\nRole Management System\n\n` +
+            `\`${prefix}channels\`\nChannel Controls\n\n` +
+            `\`${prefix}users\`\nUser Management\n\n` +
+            `\`${prefix}warn @user <reason>\`\nWarn a user\n\n` +
+            `\`${prefix}warnings [@user]\`\nView user warnings\n\n` +
+            `\`${prefix}clear <amount>\`\nDelete messages\n\n` +
+            `\`${prefix}kick @user [reason]\`\nKick user\n\n` +
+            `\`${prefix}mute @user [duration]\`\nMute user\n\n` +
+            `\`${prefix}unmute @user\`\nUnmute user\n\n` +
+            `\`${prefix}slowmode <seconds>\`\nSet slowmode`,
+          inline: false
+        },
+        {
+          name: '🛠️ UTILITIES & TOOLS',
+          value: 
+            `\`${prefix}calc <expression>\`\nCalculator\n\n` +
+            `\`${prefix}weather <city>\`\nWeather check\n\n` +
+            `\`${prefix}translate <text> to <lang>\`\nTranslator\n\n` +
+            `\`${prefix}remind <time> <message>\`\nSet reminder`,
+          inline: false
         }
-      )
-      .setFooter({ 
-        text: `Requested by ${message.author.tag}`, 
-        iconURL: message.author.displayAvatarURL() 
-      })
-      .setTimestamp();
-    
-    await message.reply({ embeds: [embed] });
+      );
+      
+      await message.reply({ embeds: [embed] });
+      
+    } else if (isUserMod) {
+      // MOD HELP - Games + Basic Moderation with 2-line format
+      const embed = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setAuthor({ 
+          name: '⚡ WORLD OF GAMERS BOT - MODERATOR PANEL', 
+          iconURL: client.user.displayAvatarURL() 
+        })
+        .setTitle('📚 MODERATOR COMMANDS')
+        .setDescription(`\`\`\`diff\n+ Prefix: ${prefix} | Role: MODERATOR\`\`\``)
+        .addFields(
+          {
+            name: '🎮 PUBLIC GAMES (Everyone can play)',
+            value: 
+              `\`${prefix}flag [easy|medium|hard|extreme]\`\nGuess country flags with 5 options\n\n` +
+              `\`${prefix}animal [difficulty]\`\nGuess scrambled animal names\n\n` +
+              `\`${prefix}hangman [category]\`\nClassic hangman with categories\n\n` +
+              `\`${prefix}trivia [category]\`\nTrivia questions for everyone\n\n` +
+              `\`${prefix}number [max]\`\nGuess the number game\n\n` +
+              `\`${prefix}wordchain\`\nWord chain game\n\n` +
+              `\`${prefix}rps <choice>\`\nRock Paper Scissors vs bot`,
+            inline: false
+          },
+          {
+            name: '📊 XP SYSTEM',
+            value: 
+              `\`${prefix}rank [@user]\`\nCheck XP rank and level\n\n` +
+              `\`${prefix}leaderboard [page]\`\nServer XP leaderboard\n\n` +
+              `\`${prefix}daily\`\nClaim daily XP reward\n\n` +
+              `\`${prefix}xp\`\nView XP system info\n\n` +
+              `\`${prefix}stats [@user]\`\nUser game statistics`,
+            inline: false
+          },
+          {
+            name: '👤 USER COMMANDS',
+            value: 
+              `\`${prefix}ui [@user]\`\nUser information\n\n` +
+              `\`${prefix}avatar [@user]\`\nUser avatar\n\n` +
+              `\`${prefix}serverinfo\`\nServer information\n\n` +
+              `\`${prefix}botinfo\`\nBot information\n\n` +
+              `\`${prefix}ping\`\nCheck bot latency`,
+            inline: false
+          },
+          {
+            name: '⚔️ MODERATION TOOLS',
+            value: 
+              `\`${prefix}warn @user <reason>\`\nWarn a user\n\n` +
+              `\`${prefix}warnings [@user]\`\nView user warnings\n\n` +
+              `\`${prefix}clear <amount>\`\nDelete messages\n\n` +
+              `\`${prefix}kick @user [reason]\`\nKick user\n\n` +
+              `\`${prefix}mute @user [duration]\`\nMute user\n\n` +
+              `\`${prefix}unmute @user\`\nUnmute user\n\n` +
+              `\`${prefix}slowmode <seconds>\`\nSet slowmode`,
+            inline: false
+          },
+          {
+            name: '🛠️ UTILITIES',
+            value: 
+              `\`${prefix}calc <expression>\`\nCalculator\n\n` +
+              `\`${prefix}weather <city>\`\nWeather check\n\n` +
+              `\`${prefix}translate <text> to <lang>\`\nTranslator\n\n` +
+              `\`${prefix}remind <time> <message>\`\nSet reminder`,
+            inline: false
+          },
+          {
+            name: '😄 FUN COMMANDS',
+            value: 
+              `\`${prefix}joke\`\nRandom joke\n\n` +
+              `\`${prefix}quote\`\nInspirational quote\n\n` +
+              `\`${prefix}coin\`\nCoin flip\n\n` +
+              `\`${prefix}dice [NdS]\`\nDice roller\n\n` +
+              `\`${prefix}8ball <question>\`\nMagic 8 ball`,
+            inline: false
+          }
+        )
+        .setFooter({ 
+          text: `Moderator Commands • Requested by ${message.author.tag}`, 
+          iconURL: message.author.displayAvatarURL() 
+        })
+        .setTimestamp();
+      
+      await message.reply({ embeds: [embed] });
+      
+    } else {
+      // MEMBER HELP - Only games and basic commands with 2-line format
+      const embed = new EmbedBuilder()
+        .setColor(0x5865F2)
+        .setAuthor({ 
+          name: '⚡ WORLD OF GAMERS BOT', 
+          iconURL: client.user.displayAvatarURL() 
+        })
+        .setTitle('🎮 GAME COMMANDS DIRECTORY')
+        .setDescription(`\`\`\`diff\n+ Prefix: ${prefix} | Type command to play\n+ All games are PUBLIC - Anyone can join!\`\`\``)
+        .setThumbnail('https://cdn.discordapp.com/emojis/🎮.png?v=1')
+        .addFields(
+          {
+            name: '🎌 FLAG GUESSING GAME',
+            value: 
+              `\`${prefix}flag [difficulty]\`\nGuess country flags with 5 options\n\n` +
+              `**Difficulties:** easy, medium, hard, extreme\n` +
+              `**XP Reward:** 2 XP for first correct answer\n` +
+              `**Example:** \`${prefix}flag hard\``,
+            inline: false
+          },
+          {
+            name: '🐾 ANIMAL GUESSING GAME',
+            value: 
+              `\`${prefix}animal [difficulty]\`\nUnscramble animal names\n\n` +
+              `**Difficulties:** easy, medium, hard, extreme\n` +
+              `**XP Reward:** 2 XP for first correct answer\n` +
+              `**Example:** \`${prefix}animal medium\``,
+            inline: false
+          },
+          {
+            name: '🎯 HANGMAN GAME',
+            value: 
+              `\`${prefix}hangman [category]\`\nGuess letters to complete the word\n\n` +
+              `**Categories:** animals, fruits, countries, movies, sports, colors\n` +
+              `**XP Reward:** 3 XP for winner\n` +
+              `**Example:** \`${prefix}hangman movies\``,
+            inline: false
+          },
+          {
+            name: '🧠 TRIVIA GAME',
+            value: 
+              `\`${prefix}trivia [category]\`\nAnswer multiple choice questions\n\n` +
+              `**Categories:** general, science, sports\n` +
+              `**XP Reward:** Up to 6 XP for top players\n` +
+              `**Example:** \`${prefix}trivia science\``,
+            inline: false
+          },
+          {
+            name: '🔢 NUMBER GUESSING',
+            value: 
+              `\`${prefix}number [max]\`\nGuess the secret number\n\n` +
+              `**Range:** 1 to specified max (default: 100)\n` +
+              `**XP Reward:** 3-5 XP for closest guess\n` +
+              `**Example:** \`${prefix}number 1000\``,
+            inline: false
+          },
+          {
+            name: '🔤 WORD CHAIN',
+            value: 
+              `\`${prefix}wordchain\`\nSay words starting with last letter\n\n` +
+              `**XP Reward:** 0.1 XP per valid word\n` +
+              `**Example:** \`${prefix}wordchain\``,
+            inline: false
+          },
+          {
+            name: '✊ ROCK PAPER SCISSORS',
+            value: 
+              `\`${prefix}rps <choice>\`\n1v1 against the bot\n\n` +
+              `**Choices:** rock, paper, scissors\n` +
+              `**XP Reward:** 1 XP for win, 0.5 XP for draw\n` +
+              `**Example:** \`${prefix}rps rock\``,
+            inline: false
+          },
+          {
+            name: '📊 XP SYSTEM COMMANDS',
+            value: 
+              `\`${prefix}rank [@user]\`\nCheck your level and XP\n\n` +
+              `\`${prefix}leaderboard [page]\`\nServer rankings\n\n` +
+              `\`${prefix}daily\`\nClaim daily reward (5 XP)\n\n` +
+              `\`${prefix}xp\`\nView XP system information\n\n` +
+              `\`${prefix}stats [@user]\`\nView game statistics`,
+            inline: false
+          },
+          {
+            name: '👤 USER COMMANDS',
+            value: 
+              `\`${prefix}ui [@user]\`\nUser information\n\n` +
+              `\`${prefix}avatar [@user]\`\nUser avatar\n\n` +
+              `\`${prefix}serverinfo\`\nServer information\n\n` +
+              `\`${prefix}botinfo\`\nBot information\n\n` +
+              `\`${prefix}ping\`\nCheck bot latency`,
+            inline: false
+          },
+          {
+            name: '🛠️ UTILITY COMMANDS',
+            value: 
+              `\`${prefix}calc <math>\`\nCalculator\n\n` +
+              `\`${prefix}weather <city>\`\nWeather\n\n` +
+              `\`${prefix}translate <text> to <lang>\`\nTranslator`,
+            inline: false
+          },
+          {
+            name: '😄 FUN COMMANDS',
+            value: 
+              `\`${prefix}joke\`\nRandom joke\n\n` +
+              `\`${prefix}quote\`\nInspirational quote\n\n` +
+              `\`${prefix}coin\`\nCoin flip\n\n` +
+              `\`${prefix}dice\`\nDice roller\n\n` +
+              `\`${prefix}8ball <question>\`\nMagic 8 ball`,
+            inline: false
+          }
+        )
+        .setFooter({ 
+          text: `Member Commands • All games are PUBLIC • Requested by ${message.author.tag}`, 
+          iconURL: message.author.displayAvatarURL() 
+        })
+        .setTimestamp();
+      
+      await message.reply({ embeds: [embed] });
+    }
     
   } catch (error) {
     console.error('Help command error:', error);
@@ -2449,6 +2705,8 @@ async function helpCommand(message) {
       `**Basic Commands:**\n` +
       `\`=flag\` - Flag game\n` +
       `\`=animal\` - Animal game\n` +
+      `\`=hangman\` - Hangman\n` +
+      `\`=trivia\` - Trivia\n` +
       `\`=rank\` - Check XP\n` +
       `\`=leaderboard\` - Rankings\n` +
       `\n*Full help menu failed to load*`
